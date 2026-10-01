@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<title>🐴 MandarinPath</title>
+
+<!-- iOS home-screen app behaviour -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MandarinPath" />
+<meta name="theme-color" content="#0a100d" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" href="icons/icon-192.png" />
+
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ─────────────────────────  SPLASH  ───────────────────────── -->
+<section id="screenSplash" class="screen">
+  <div class="splash-wrap">
+    <img id="splashIcon" src="icons/icon-192.png" alt="" class="splash-icon" />
+    <h1 class="splash-title">MandarinPath</h1>
+    <p class="splash-sub">Learn Mandarin · 普通话 · tones, path, XP</p>
+    <button type="button" class="btn btn-primary btn-xl" id="btnStart">Start learning</button>
+    <button type="button" class="btn btn-ghost" id="btnInstall" hidden>Add to Home Screen</button>
+    <p class="splash-note" id="splashNote">Works offline · no account · progress stays on this phone</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────  MAIN  ───────────────────────── -->
+<section id="screenMain" class="screen" hidden>
+
+  <header class="topbar">
+    <div class="stats-bar" id="statsBar"></div>
+  </header>
+
+  <nav class="tabbar" role="tablist">
+    <button type="button" class="tab active" data-goto="learn" role="tab" aria-current="page">
+      <span class="tab-ico">🗺</span><span class="tab-lab">Learn</span>
+    </button>
+    <button type="button" class="tab" data-goto="practice" role="tab" aria-current="false">
+      <span class="tab-ico">🎯</span><span class="tab-lab">Practice</span>
+      <span class="badge" id="dueBadge" hidden>0</span>
+    </button>
+    <button type="button" class="tab" data-goto="progress" role="tab" aria-current="false">
+      <span class="tab-ico">📈</span><span class="tab-lab">Progress</span>
+    </button>
+  </nav>
+
+  <!-- Learn -->
+  <div class="tab-panel" data-tab="learn">
+    <div class="learn-head">
+      <h2 class="panel-title">Your path</h2>
+      <div class="learn-progress">
+        <div class="bar"><i id="learnBar" style="width:0%"></i></div>
+        <span id="learnPct" class="muted-sm">0%</span>
+      </div>
+    </div>
+    <div id="learnCoach" class="coach" hidden></div>
+    <div id="learnPath" class="learn-path"></div>
+  </div>
+
+  <!-- Practice -->
+  <div class="tab-panel" data-tab="practice" hidden>
+    <h2 class="panel-title">Practice</h2>
+    <div id="practiceCoach" class="coach" hidden></div>
+    <div id="modeCards" class="mode-cards"></div>
+    <div class="section-label">Vocabulary</div>
+    <div id="deckGrid" class="deck-grid"></div>
+  </div>
+
+  <!-- Progress -->
+  <div class="tab-panel" data-tab="progress" hidden>
+    <h2 class="panel-title">Progress</h2>
+    <div id="profileStats" class="stat-rows"></div>
+    <div class="section-label">Units</div>
+    <div id="profileUnits" class="unit-rows"></div>
+    <div class="section-label">Review forecast</div>
+    <div id="forecast" class="forecast"></div>
+    <div class="section-label">Settings</div>
+    <div class="settings">
+      <button type="button" class="btn btn-ghost" id="btnSound">🔊 Sound: on</button>
+      <button type="button" class="btn btn-ghost" id="btnVibrate">📳 Haptics: on</button>
+      <button type="button" class="btn btn-danger" id="btnReset">Reset all progress</button>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────  LESSON  ───────────────────────── -->
+<section id="screenLesson" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseLesson" aria-label="Close">✕</button>
+    <div class="progress-wrap"><div class="bar" id="lessonProgressBar"><i id="lessonProgressFill"></i></div></div>
+    <div class="hearts" id="lessonHearts">♥ <b>5</b></div>
+  </header>
+  <div class="lesson-body" id="lessonBody"></div>
+  <div class="feedback-banner" id="feedbackBanner" hidden></div>
+</section>
+
+<!-- ─────────────────────────  REVIEW  ───────────────────────── -->
+<section id="screenReview" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseReview" aria-label="Close">✕</button>
+    <div class="progress-wrap"><div class="bar" id="reviewProgressBar"><i id="reviewProgressFill"></i></div></div>
+    <div class="hearts" id="reviewHearts">♥ <b>5</b></div>
+  </header>
+  <div class="lesson-body" id="reviewBody"></div>
+  <div class="feedback-banner" id="reviewFeedback" hidden></div>
+</section>
+
+<!-- ─────────────────────────  FLIP MATCH  ───────────────────────── -->
+<section id="screenFlip" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseFlip" aria-label="Close">✕</button>
+    <div class="flip-title">Flip Match</div>
+    <div class="hearts" id="flipScore">0/0</div>
+  </header>
+  <p class="flip-hint">Tap a card, then tap its pair.</p>
+  <div class="flip-grid" id="flipGrid"></div>
+  <div class="feedback-banner" id="flipCoach" hidden></div>
+</section>
+
+<!-- ─────────────────────────  FLASHCARDS  ───────────────────────── -->
+<section id="screenCards" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseCards" aria-label="Close">✕</button>
+    <div class="flip-title" id="cardsTitle">Deck</div>
+    <div class="hearts" id="cardsCount">0/0</div>
+  </header>
+  <p class="flip-hint">Tap the card to flip.</p>
+  <div class="card-stage" id="cardStage"></div>
+  <div class="card-grades" id="cardGrades" hidden>
+    <button type="button" class="grade-btn again" data-grade="again">Again</button>
+    <button type="button" class="grade-btn hard" data-grade="hard">Hard</button>
+    <button type="button" class="grade-btn good" data-grade="good">Good</button>
+    <button type="button" class="grade-btn easy" data-grade="easy">Easy</button>
+  </div>
+</section>
+
+<!-- ─────────────────────────  TONE TRAINER  ───────────────────────── -->
+<section id="screenTones" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseTones" aria-label="Close">✕</button>
+    <div class="flip-title">Tone Trainer</div>
+    <div class="hearts" id="toneScore">0/0</div>
+  </header>
+  <p class="flip-hint" id="toneHint">Which tone did you hear?</p>
+  <div class="tone-stage" id="toneStage"></div>
+  <div class="tone-buttons" id="toneButtons"></div>
+  <div class="feedback-banner" id="toneFeedback" hidden></div>
+</section>
+
+<!-- ─────────────────────────  LESSON COMPLETE  ───────────────────────── -->
+<section id="screenComplete" class="screen" hidden>
+  <div class="complete-wrap">
+    <img src="icons/icon-192.png" alt="" class="complete-icon" id="completeIcon" />
+    <h2 class="complete-title">Lesson clear!</h2>
+    <div class="complete-xp" id="completeXP">+25 XP</div>
+    <div class="complete-streak" id="completeStreak">🔥 1-day streak</div>
+    <div class="complete-detail" id="completeDetail"></div>
+    <button type="button" class="btn btn-primary btn-xl" id="btnToPractice">Claim XP</button>
+  </div>
+</section>
+
+<div id="toast" class="toast" hidden></div>
+<div id="xpFloat" class="xp-float" hidden>+25 XP</div>
+<div id="sparkles" class="sparkles" aria-hidden="true"></div>
+
+<script src="vocab-data.js"></script>
+<script src="srs.js"></script>
+<script src="data.js"></script>
+<script src="sfx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
