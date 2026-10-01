@@ -26,7 +26,15 @@
       completed: {},          // lessonId -> timestamp
       cards: {},              // cardKey -> SRS record
       introduced: {},         // cardKey -> timestamp (seen at least once)
-      settings: { sound: true, haptics: true },
+      settings: {
+        sound: true,
+        haptics: true,
+        speechRate: 0.7,   // beginner default; iOS TTS range is ~0.5-1.6
+        showEnglish: true, // reveal the English meaning before answering
+        showPinyin: true,  // show pinyin on English->Chinese prompts
+        theme: "jade",
+        tracePractice: true
+      },
       session: { lessonId: null, index: 0 }
     };
   }
@@ -150,37 +158,56 @@
     return pool.find((v) => v.localService) || pool[0];
   }
 
-  function speak(text, opts) {
-    if (!window.speechSynthesis || !text) return;
-    const now = Date.now();
-    if (!zhVoice || now - voicesResolvedAt > 5000) {
-      zhVoice = resolveVoice();
-      voicesResolvedAt = now;
+  const SPEECH_STEPS = [0.5, 0.6, 0.7, 0.85, 1.0, 1.25];
+
+    function rateLabel(rate) {
+      if (rate <= 0.5) return "0.5× very slow";
+      if (rate <= 0.6) return "0.6× slow";
+      if (rate <= 0.7) return "0.7× beginner";
+      if (rate <= 0.85) return "0.85× natural";
+      if (rate < 1) return "1×";
+      return "1.25× fast";
     }
-    if (!zhVoice) {
-      if (!speak._warned) {
-        speak._warned = true;
-        console.info("[MandarinPath] No Mandarin voice installed. On iOS: Settings > Accessibility > Spoken Content > Voices > Chinese.");
-        toast("No Mandarin voice — see Settings › Accessibility");
+
+    function speak(text, opts) {
+      if (!window.speechSynthesis || !text) return;
+      opts = opts || {};
+      const now = Date.now();
+      if (!zhVoice || now - voicesResolvedAt > 5000) {
+        zhVoice = resolveVoice();
+        voicesResolvedAt = now;
       }
-      return;
+      if (!zhVoice) {
+        if (!speak._warned) {
+          speak._warned = true;
+          console.info("[MandarinPath] No Mandarin voice installed. On iOS: Settings > Accessibility > Spoken Content > Voices > Chinese.");
+          toast("No Mandarin voice — see Settings › Accessibility");
+        }
+        return;
+      }
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(text));
+        u.lang = zhVoice.lang || "zh-CN";
+        u.voice = zhVoice;
+        // Slow by default: a beginner cannot parse tone contours above ~0.85,
+        // and above 1.0 the tones flatten into each other entirely.
+        u.rate = opts.rate || S.settings.speechRate || 0.7;
+        u.pitch = opts.pitch || 1;
+        u.onend = function () {
+          document.querySelectorAll(".speaking").forEach((n) => n.classList.remove("speaking"));
+        };
+        speechSynthesis.speak(u);
+      } catch (e) {
+        /* some browsers throw if speak() is called too soon after cancel() */
+      }
     }
-    opts = opts || {};
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text));
-      u.lang = zhVoice.lang || "zh-CN";
-      u.voice = zhVoice;
-      u.rate = opts.rate || 0.85;   // beginners: slow, tones intact
-      u.pitch = opts.pitch || 1;
-      u.onend = function () {
-        document.querySelectorAll(".speaking").forEach((n) => n.classList.remove("speaking"));
-      };
-      speechSynthesis.speak(u);
-    } catch (e) {
-      /* some browsers throw if speak() is called too soon after cancel() */
+
+    /* Replays the current audio slowly. Every speaker button gets one of these,
+     * because "I heard it but did not catch it" is the normal beginner state. */
+    function speakSlow(text) {
+      speak(text, { rate: Math.max(0.45, (S.settings.speechRate || 0.7) * 0.65) });
     }
-  }
 
   if (window.speechSynthesis) {
     speechSynthesis.addEventListener("voiceschanged", function () {
@@ -198,9 +225,90 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  /* The speaker control pair. Two buttons, because "play it again slower" is
+   * the single most-used action for a beginner who did not catch the tone. */
+  function audioControls(text, id) {
+    if (!text) return "";
+    return (
+      '<div class="audio-pair">' +
+        '<button type="button" class="speaker-btn" id="' + (id || "btnSpeak") +
+          '" data-say="' + esc(text) + '" aria-label="Play">🔊</button>' +
+        '<button type="button" class="speaker-btn slow" data-say-slow="' + esc(text) +
+          '" aria-label="Play slowly">🐢</button>' +
+      "</div>"
+    );
+  }
+
+  /* Delegated handlers: works for buttons injected at any point, so every
+   * render gets slow-replay without rewiring each screen. */
+  document.addEventListener("click", function (e) {
+    const fast = e.target.closest && e.target.closest("[data-say]");
+    if (fast) { e.stopPropagation(); speak(fast.getAttribute("data-say")); return; }
+    const slow = e.target.closest && e.target.closest("[data-say-slow]");
+    if (slow) { e.stopPropagation(); speakSlow(slow.getAttribute("data-say-slow")); }
+  }, true);
+
+  /* Rate readout for the settings screen. */
+  function applySpeechSettings() {
+    S.settings.speechRate = Number(S.settings.speechRate) || 0.7;
+    const el = document.getElementById("btnSpeechRate");
+    if (el) el.textContent = "🐢 Listening speed: " + rateLabel(S.settings.speechRate);
+  }
+
+  /* ── Themes ─────────────────────────────────────────────────────────
+   * Three palettes tuned to the dragon mark: jade green (default, echoes the
+   * icon field), imperial burgundy, and an ink-on-paper light theme for
+   * daytime reading. Values override the demo stylesheet's :root tokens so
+   * every component re-colours without touching component CSS. */
+  const THEMES = {
+    jade: {
+      label: "Jade",
+      bg: "#0a1510", bg2: "#101d16", screen: "#121C17", card: "#1E2A1F", cardElev: "#243028",
+      text: "#F0F7F2", muted: "#9BB0A3", primary: "#22C55E", accent: "#80182E", line: "rgba(155,176,163,.35)"
+    },
+    imperial: {
+      label: "Imperial",
+      bg: "#150a0d", bg2: "#1c0e12", screen: "#1E1014", card: "#2A181C", cardElev: "#331D22",
+      text: "#F7EDEC", muted: "#C4A8A4", primary: "#C9A227", accent: "#8E1B32", line: "rgba(196,168,164,.32)"
+    },
+    paper: {
+      label: "Paper",
+      bg: "#f4efe4", bg2: "#ece4d5", screen: "#fbf7ee", card: "#ffffff", cardElev: "#f7f1e6",
+      text: "#20201c", muted: "#6d6a5f", primary: "#12833f", accent: "#8E1B32", line: "rgba(32,32,28,.18)"
+    }
+  };
+  const THEME_ORDER = ["jade", "imperial", "paper"];
+
+  function nextTheme(current) {
+    const i = THEME_ORDER.indexOf(current);
+    return THEME_ORDER[(i + 1) % THEME_ORDER.length];
+  }
+
+  function applyTheme() {
+    const key = THEMES[S.settings.theme] ? S.settings.theme : "jade";
+    const t = THEMES[key];
+    const r = document.documentElement.style;
+    r.setProperty("--bg", t.bg);
+    r.setProperty("--screen", t.screen);
+    r.setProperty("--card", t.card);
+    r.setProperty("--card-elev", t.cardElev);
+    r.setProperty("--text", t.text);
+    r.setProperty("--muted", t.muted);
+    r.setProperty("--primary", t.primary);
+    r.setProperty("--accent", t.accent);
+    r.setProperty("--path-line", t.line);
+    document.body.setAttribute("data-theme", key);
+    // Keep the browser chrome (status bar area) matching the chosen background.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", t.bg);
+    const btn = document.getElementById("btnTheme");
+    if (btn) btn.textContent = "🎨 Theme: " + t.label;
+    updateStats();
+  }
+
   function showScreen(id) {
     ["screenSplash", "screenMain", "screenLesson", "screenReview", "screenFlip",
-     "screenCards", "screenTones", "screenComplete"].forEach((s) => {
+     "screenCards", "screenTones", "screenTrace", "screenComplete"].forEach((s) => {
       const n = document.getElementById(s);
       if (n) n.hidden = s !== id;
     });
@@ -401,18 +509,19 @@
       body.innerHTML =
         '<div class="dir-label">New word · tap to hear</div>' +
         '<div class="teach-card">' +
-          '<button type="button" class="teach-zh speakable" id="speakZh">' + esc(ex.zh) + "</button>" +
-          '<button type="button" class="teach-py speakable" id="speakPy">' + esc(ex.pinyin) + "</button>" +
+          '<button type="button" class="teach-zh speakable" id="speakZh" data-say="' + esc(ex.zh) + '">' + esc(ex.zh) + "</button>" +
+          '<button type="button" class="teach-py speakable" data-say="' + esc(ex.zh) + '">' + esc(ex.pinyin) + "</button>" +
           '<div class="teach-en">' + esc(ex.en) + "</div>" +
           '<p class="teach-hint">Tap the characters to hear · 点击听发音</p>' +
-          '<button type="button" class="speaker-btn" id="btnSpeak" aria-label="Play">🔊</button>' +
+          audioControls(ex.zh) +
         "</div>" +
+        (S.settings.tracePractice && CJK.test(ex.zh)
+          ? '<button type="button" class="btn btn-ghost trace-open" data-trace="' +
+            esc(ex.zh) + '" data-py="' + esc(ex.pinyin) + '">✍️ Write it</button>' : "") +
         '<button type="button" class="btn btn-primary btn-xl" id="btnTeachNext">Got it — continue</button>';
-      const play = () => speak(ex.zh);
-      $("#speakZh").addEventListener("click", play);
-      $("#speakPy").addEventListener("click", play);
-      $("#btnSpeak").addEventListener("click", play);
       $("#btnTeachNext").addEventListener("click", nextExercise);
+      $$(".trace-open", body).forEach((b) =>
+        b.addEventListener("click", () => openTrace(b.getAttribute("data-trace"), b.getAttribute("data-py"))));
       return;
     }
 
@@ -448,14 +557,27 @@
       const zhToEn = ex.direction === "zh_to_en" || isListen;
       const dirLabel = isListen ? "Listen — what does this mean?"
         : zhToEn ? "What does this mean?" : "How do you say this in Chinese?";
+
+      // English-first: always show the meaning up front for a beginner, and
+      // show pinyin above the characters when reading English -> Chinese.
+      // Neither replaces the character prompt; they sit alongside it.
+      const gloss = S.settings.showEnglish && ex.answer
+        ? '<div class="gloss">' +
+            (zhToEn && ex.pinyin ? '<span class="gloss-py">' + esc(ex.pinyin) + "</span>" : "") +
+            '<span class="gloss-en">' + esc(zhToEn ? ex.answer : ex.prompt) + "</span>" +
+            '<span class="gloss-tag">meaning</span>' +
+          "</div>"
+        : "";
+      const hint = (!zhToEn && S.settings.showPinyin && ex.pinyin)
+        ? '<p class="prompt-hint">Sounds like: <b>' + esc(ex.pinyin) + "</b></p>" : "";
+
       const promptHtml = zhToEn
-        ? '<button type="button" class="prompt-zh speakable" id="promptTap">' + esc(ex.prompt) + "</button>" +
+        ? '<button type="button" class="prompt-zh speakable" id="promptTap" data-say="' + esc(ex.prompt) + '">' + esc(ex.prompt) + "</button>" +
           (ex.pinyin ? '<div class="prompt-py">' + esc(ex.pinyin) + "</div>" : "")
         : '<div class="prompt-en">' + esc(ex.prompt) + "</div>";
       const opts = ex.options.map((o, i) => {
         if (CJK.test(o)) {
-          return '<div class="opt-row"><button type="button" class="opt-btn has-zh" data-i="' + i + '">' + esc(o) + "</button>" +
-            '<button type="button" class="opt-speak" data-speak="' + esc(o) + '" aria-label="Play">🔊</button></div>';
+          return '<div class="opt-row"><button type="button" class="opt-btn has-zh" data-i="' + i + '" data-say="' + esc(o) + '">' + esc(o) + "</button></div>";
         }
         return '<button type="button" class="opt-btn" data-i="' + i + '">' + esc(o) + "</button>";
       }).join("");
@@ -463,16 +585,11 @@
       body.innerHTML =
         '<div class="dir-label">' + dirLabel + "</div>" +
         '<div class="prompt-row">' + promptHtml +
-          '<button type="button" class="speaker-btn" id="btnSpeak" aria-label="Play">🔊</button></div>' +
+          audioControls(ex.prompt) + "</div>" +
+        gloss + hint +
         '<div class="opt-list">' + opts + "</div>";
 
-      const play = () => speak(ex.prompt);
-      $("#btnSpeak").addEventListener("click", play);
-      const pt = $("#promptTap");
-      if (pt) pt.addEventListener("click", play);
-      $$(".opt-speak", body).forEach((b) =>
-        b.addEventListener("click", (ev) => { ev.stopPropagation(); speak(b.dataset.speak); }));
-      if (isListen) setTimeout(play, 300);
+      if (isListen) setTimeout(() => speak(ex.prompt), 300);
 
       $$(".opt-btn", body).forEach((btn) => {
         btn.addEventListener("click", function () {
@@ -712,6 +829,181 @@
     showScreen("screenMain");
     setTab("practice");
     toast("XP claimed — " + dueCount() + " cards due");
+  }
+
+  /* ── Writing practice (trace + self-check) ─────────────────────────
+   * A tracing grid with a faint guide glyph. There is no stroke-order data
+   * in the bundle, so this cannot grade correctness or teach proper stroke
+   * order -- it builds the motor path and forces a deliberate pause on the
+   * shape. The guide glyph is rendered by the browser, so the grid is only
+   * offered for single characters, where it actually makes sense. */
+  let traceCtx = null;
+  let traceDrawn = false;
+  // Module-level so paintGuide() can reach the current glyph: it is only ever
+  // a local inside openTrace(), which left the guide glyph unreferenced.
+  let traceGlyph = "";
+
+  /* Write mode launched from Practice: cycle the single-character words the
+   * learner has actually met, so the drill reinforces known material. */
+  let writeQueue = [];
+  let writeIdx = 0;
+
+  function openWritePicker() {
+    const learned = M.ALL_CARDS.filter((w) =>
+      CJK.test(w.zh) && Array.from(w.zh).length === 1 &&
+      S.introduced[cardKey(w.zh, w.pinyin)]
+    );
+    const pool = (learned.length >= 3 ? learned : M.ALL_CARDS.filter((w) =>
+      CJK.test(w.zh) && Array.from(w.zh).length === 1)).slice(0, 40);
+    if (!pool.length) { toast("No characters to trace yet"); return; }
+    writeQueue = M.shuffle(pool).slice(0, 12);
+    writeIdx = 0;
+    toast(writeQueue.length + " characters to trace");
+    openTrace(writeQueue[0].zh, writeQueue[0].pinyin);
+  }
+
+  function openTrace(zh, pinyin) {
+    const glyph = String(zh || "");
+    traceGlyph = glyph;
+    $("#traceGlyph").textContent = glyph;
+    $("#tracePinyin").textContent = pinyin || "";
+    // The section id is "screenTrace", not "traceScreen".
+    $("#screenTrace").dataset.zh = glyph;
+    showScreen("screenTrace");
+    const cv = $("#traceCanvas");
+    traceDrawn = false;
+    paintGuide();
+    speak(glyph);
+  }
+
+  function paintGuide() {
+    const cv = $("#traceCanvas");
+    if (!cv) return;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    // The grid must be square: the 田字格 guide and the guide glyph are both
+    // drawn against cssW/cssH, so a non-square box yields a distorted grid.
+    // Measure the stage (which is flex-sized), then force a square CSS box
+    // before reading it back. Without this, CSS `aspect-ratio` + `height:auto`
+    // loses to the pixel assignment below and the canvas collapses.
+    const stage = cv.parentElement;
+    const avail = (stage && stage.clientWidth) || cv.clientWidth || 320;
+    const side = Math.max(180, Math.min(360, Math.floor(avail)));
+    cv.style.width = side + "px";
+    cv.style.height = side + "px";
+    const cssW = side;
+    const cssH = side;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    const c = cv.getContext("2d");
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    traceCtx = c;
+
+    c.clearRect(0, 0, cssW, cssH);
+    c.fillStyle = "#f6faf6";
+    c.fillRect(0, 0, cssW, cssH);
+
+    // 田字格-style guide: box plus centre cross and diagonals
+    c.strokeStyle = "#c3d4c8";
+    c.lineWidth = 1;
+    c.strokeRect(6, 6, cssW - 12, cssH - 12);
+    c.beginPath();
+    c.moveTo(cssW / 2, 6); c.lineTo(cssW / 2, cssH - 6);
+    c.moveTo(6, cssH / 2); c.lineTo(cssW - 6, cssH / 2);
+    c.stroke();
+    c.strokeStyle = "rgba(195,212,200,.55)";
+    c.setLineDash([4, 5]);
+    c.beginPath();
+    c.moveTo(6, 6); c.lineTo(cssW - 6, cssH - 6);
+    c.moveTo(cssW - 6, 6); c.lineTo(6, cssH - 6);
+    c.stroke();
+    c.setLineDash([]);
+
+    // faint guide glyph
+    const size = Math.min(cssW, cssH) * 0.66;
+    c.fillStyle = "rgba(34,197,94,.20)";
+    c.font = size + 'px "PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif';
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText(String(traceGlyph).slice(0, 1), cssW / 2, cssH / 2 + size * 0.04);
+  }
+
+  function wireTrace() {
+    const cv = $("#traceCanvas");
+    if (!cv) return;
+    let active = false;
+
+    function pos(ev) {
+      const r = cv.getBoundingClientRect();
+      const src = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+      return { x: src.clientX - r.left, y: src.clientY - r.top };
+    }
+
+    function down(ev) {
+      ev.preventDefault();
+      active = true;
+      const p = pos(ev);
+      const c = cv.getContext("2d");
+      c.beginPath();
+      c.moveTo(p.x, p.y);
+    }
+    function move(ev) {
+      if (!active) return;
+      ev.preventDefault();
+      const p = pos(ev);
+      const c = cv.getContext("2d");
+      c.lineTo(p.x, p.y);
+      c.strokeStyle = "#12833f";
+      c.lineWidth = 12;
+      c.lineCap = "round";
+      c.lineJoin = "round";
+      c.stroke();
+      traceDrawn = true;
+    }
+    function up() { active = false; }
+
+    cv.addEventListener("mousedown", down);
+    cv.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    cv.addEventListener("touchstart", down, { passive: false });
+    cv.addEventListener("touchmove", move, { passive: false });
+    cv.addEventListener("touchend", up);
+
+    $("#btnTraceClear").addEventListener("click", function () {
+      traceDrawn = false;
+      paintGuide();
+    });
+    $("#btnTraceHear").addEventListener("click", function () {
+      speak($("#screenTrace").dataset.zh || "");
+    });
+    $("#btnTraceHearSlow").addEventListener("click", function () {
+      speakSlow($("#screenTrace").dataset.zh || "");
+    });
+    $("#btnTraceDone").addEventListener("click", function () {
+      if (!traceDrawn) { toast("Trace the character first"); return; }
+      sfx.reward();
+      S.xp += 3;
+      touchStreak();
+      save();
+      updateStats();
+
+      // If Write mode supplied a queue, step to the next character in place.
+      if (writeQueue.length && writeIdx < writeQueue.length - 1) {
+        writeIdx++;
+        openTrace(writeQueue[writeIdx].zh, writeQueue[writeIdx].pinyin);
+        return;
+      }
+      if (writeQueue.length) {
+        toast("Write session done · " + writeQueue.length + " characters");
+        writeQueue = [];
+      } else {
+        toast("Nice writing · +3 XP");
+      }
+      toMain(writeQueue.length ? "practice" : "learn");
+    });
+    $("#btnCloseTrace").addEventListener("click", () => toMain("learn"));
+    window.addEventListener("resize", () => {
+      if (!$("#screenTrace").hidden) paintGuide();
+    });
   }
 
   /* ── SRS review ────────────────────────────────────────────────────── */
@@ -1042,12 +1334,16 @@
       '<button type="button" class="mode-card teal-mode" id="modeTones">' +
         '<div class="mode-ico teal">🎵</div><div class="mode-text"><strong>Tone Trainer</strong>' +
         "<span>Hear it · pick the tone</span></div><span class=\"mode-start teal\">Start</span></button>" +
+      '<button type="button" class="mode-card teal-mode" id="modeWrite">' +
+        '<div class="mode-ico teal">✍️</div><div class="mode-text"><strong>Write</strong>' +
+        "<span>Trace characters with your finger</span></div><span class=\"mode-start teal\">Start</span></button>" +
       '<button type="button" class="mode-card gold-mode" id="modeFlip">' +
         '<div class="mode-ico gold">🃏</div><div class="mode-text"><strong>Flip Match</strong>' +
         "<span>Match words to meanings</span></div><span class=\"mode-start gold\">Start</span></button>";
 
     $("#modeReview").addEventListener("click", startReview);
     $("#modeTones").addEventListener("click", openTones);
+    $("#modeWrite").addEventListener("click", openWritePicker);
     $("#modeFlip").addEventListener("click", openFlip);
 
     const grid = $("#deckGrid");
@@ -1140,6 +1436,9 @@
   /* ── Boot ──────────────────────────────────────────────────────────── */
   function boot() {
     showScreen("screenSplash");
+    applyTheme();
+    applySpeechSettings();
+    wireTrace();
 
     // Restore the last XP so the header is right on the splash→main transition.
     updateStats();
@@ -1167,6 +1466,38 @@
     $("#btnVibrate").addEventListener("click", function () {
       S.settings.haptics = !S.settings.haptics;
       this.textContent = "📳 Haptics: " + (S.settings.haptics ? "on" : "off");
+      save();
+    });
+
+    // Cycle the listening speed; each tap steps through slower/natural/fast so
+    // the learner can find their own speed instead of guessing.
+    $("#btnSpeechRate").addEventListener("click", function () {
+      const i = SPEECH_STEPS.findIndex((r) => r >= (S.settings.speechRate || 0.7) - 0.001);
+      S.settings.speechRate = SPEECH_STEPS[(i + 1) % SPEECH_STEPS.length];
+      applySpeechSettings();
+      save();
+      speak("nǐ hǎo");   // audition the new speed immediately
+    });
+
+    $("#btnShowEnglish").addEventListener("click", function () {
+      S.settings.showEnglish = !S.settings.showEnglish;
+      this.textContent = "🇬🇧 English meaning: " + (S.settings.showEnglish ? "on" : "off");
+      save();
+      toast(S.settings.showEnglish ? "Meaning shown before you answer" : "No meaning hint — recall only");
+    });
+    $("#btnShowPinyin").addEventListener("click", function () {
+      S.settings.showPinyin = !S.settings.showPinyin;
+      this.textContent = "🔤 Pinyin hints: " + (S.settings.showPinyin ? "on" : "off");
+      save();
+    });
+    $("#btnTracePractice").addEventListener("click", function () {
+      S.settings.tracePractice = !S.settings.tracePractice;
+      this.textContent = "✍️ Writing practice: " + (S.settings.tracePractice ? "on" : "off");
+      save();
+    });
+    $("#btnTheme").addEventListener("click", function () {
+      S.settings.theme = nextTheme(S.settings.theme);
+      applyTheme();
       save();
     });
     $("#btnReset").addEventListener("click", function () {

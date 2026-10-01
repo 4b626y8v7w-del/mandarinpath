@@ -116,12 +116,25 @@
   function makeOptions(target, pool, n) {
     const pool2 = pool.filter((w) => w.zh !== target.zh);
     const picked = [];
+    const seen = new Set();
+    // Glosses are not unique per word ("at; in; to be located" covers both
+    // 在 and some others), so the de-dup has to run on the displayed string or
+    // the same option shows up twice and the answer becomes guessable.
+    const push = (w) => {
+      if (!w) return;
+      const label = w === target ? target.en : w.en;
+      if (seen.has(label)) return;
+      seen.add(label);
+      picked.push(w);
+    };
     const sameBand = pool2.filter((w) => w.hsk === target.hsk);
     const rest = pool2.filter((w) => w.hsk !== target.hsk);
-    picked.push(...shuffle(sameBand).slice(0, Math.max(1, Math.ceil(n / 2))));
-    picked.push(...shuffle(rest).slice(0, n - picked.length));
-    while (picked.length < n) picked.push(shuffle(pool2)[picked.length]);
-    return shuffle(picked.concat([target])).slice(0, n + 1);
+    shuffle(sameBand).forEach((w) => { if (picked.length < Math.max(1, Math.ceil(n / 2))) push(w); });
+    shuffle(rest).forEach((w) => { if (picked.length < n) push(w); });
+    // Fall back to the whole pool if dedup left us short.
+    shuffle(pool2).forEach((w) => { if (picked.length < n) push(w); });
+    push(target);
+    return shuffle(picked).slice(0, n + 1);
   }
 
   function lessonFromWords(lessonId, words, unitTitle, xp) {

@@ -1,0 +1,227 @@
+/* MandarinPath — beginner features: audio pair, English gloss, tracing grid,
+   and theme surfaces. Loaded after shell.css and styles.css. */
+
+/* ── Two-button audio control ───────────────────────────────────────
+   "Play" and "Play slowly" side by side. A beginner who does not catch a
+   tone needs the slow replay one tap away, not buried in a menu. */
+.audio-pair {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.speaker-btn {
+  min-width: 56px;
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--path-line);
+  background: var(--card-elev);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.speaker-btn.slow {
+  background: linear-gradient(140deg, var(--primary), var(--accent));
+  border-color: transparent;
+  color: #fff;
+}
+
+.speaker-btn:active {
+  transform: scale(0.94);
+}
+
+/* ── English-first gloss ────────────────────────────────────────────
+   The meaning is shown before the learner commits to an answer. This is the
+   single biggest change for a total beginner: recognition of "hello" before
+   being asked to recall it. */
+.gloss {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--card-elev);
+  border: 1px solid var(--path-line);
+  border-left: 4px solid var(--primary);
+}
+
+.gloss-py {
+  font-size: 0.86rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.gloss-en {
+  font-size: 1.06rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.gloss-tag {
+  margin-left: auto;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.prompt-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.prompt-hint b {
+  color: var(--primary);
+  font-style: italic;
+}
+
+/* ── Writing / trace ────────────────────────────────────────────────── */
+.trace-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px var(--gutter) calc(16px + var(--safe-b));
+  overflow-y: auto;
+}
+
+.trace-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.trace-stage {
+  flex: 1 1 auto;
+  min-height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#traceCanvas {
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: 18px;
+  border: 1px solid var(--path-line);
+  touch-action: none;      /* finger drawing must not scroll the page */
+  cursor: crosshair;
+}
+
+.trace-target {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.trace-target b {
+  font-size: 1.3rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.trace-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* ── Settings rows ─────────────────────────────────────────────────── */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings .btn {
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.btn-danger {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+
+/* ── Theme surfaces ──────────────────────────────────────────────────
+   The imported stylesheet hardcodes several colours, so the light theme needs
+   a few overrides for surfaces it paints directly rather than via tokens. */
+body[data-theme="paper"] {
+  color-scheme: light;
+}
+
+body[data-theme="paper"] .toast,
+body[data-theme="paper"] .feedback-banner,
+body[data-theme="paper"] .teach-card,
+body[data-theme="paper"] .opt-btn,
+body[data-theme="paper"] .mode-card,
+body[data-theme="paper"] .deck-card,
+body[data-theme="paper"] .chapter-card,
+body[data-theme="paper"] .flashcard,
+body[data-theme="paper"] .btn-ghost {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--path-line);
+}
+
+body[data-theme="paper"] .topbar,
+body[data-theme="paper"] .lesson-head,
+body[data-theme="paper"] .tabbar {
+  background: var(--screen);
+  border-color: var(--path-line);
+}
+
+body[data-theme="paper"] .node-btn.unlocked,
+body[data-theme="paper"] .node-btn.current {
+  color: #fff;
+}
+
+body[data-theme="paper"] .path-connector {
+  background: var(--path-line);
+}
+
+body[data-theme="paper"] .trace-stage #traceCanvas {
+  background: #fff;
+}
+
+/* Imperial leans on burgundy + gold rather than green. */
+body[data-theme="imperial"] .btn-primary {
+  background: linear-gradient(140deg, var(--primary), var(--accent));
+}
+
+/* ── Splash: dragon mark ───────────────────────────────────────────── */
+.splash-icon {
+  width: 108px;
+  height: 108px;
+  border-radius: 26px;
+  box-shadow: 0 0 0 2px rgba(222, 178, 74, 0.45), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.complete-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+}
+
+/* Trace sheet stays paper-white in every theme: a writing surface should
+   always read as ink on paper. */
+.trace-stage #traceCanvas {
+  background: #f6faf6;
+}

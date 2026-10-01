@@ -19,6 +19,8 @@
 <!-- shell.css last: it supplies the fixed-viewport app shell that the demo
      stylesheet does not cover (it styles a marketing phone mockup instead). -->
 <link rel="stylesheet" href="shell.css" />
+<!-- beginner.css: audio-pair, English gloss, trace grid, theme surfaces -->
+<link rel="stylesheet" href="beginner.css" />
 </head>
 <body>
 
@@ -87,7 +89,12 @@
     <div class="section-label">Settings</div>
     <div class="settings">
       <button type="button" class="btn btn-ghost" id="btnSound">🔊 Sound: on</button>
-      <button type="button" class="btn btn-ghost" id="btnVibrate">📳 Haptics: on</button>
+      <button type="button" class="btn btn-vibrate" id="btnVibrate">📳 Haptics: on</button>
+      <button type="button" class="btn btn-ghost" id="btnSpeechRate">🐢 Listening speed: 0.7× beginner</button>
+      <button type="button" class="btn btn-ghost" id="btnShowEnglish">🇬🇧 English meaning: on</button>
+      <button type="button" class="btn btn-ghost" id="btnShowPinyin">🔤 Pinyin hints: on</button>
+      <button type="button" class="btn btn-ghost" id="btnTracePractice">✍️ Writing practice: on</button>
+      <button type="button" class="btn btn-ghost" id="btnTheme">🎨 Theme: Jade</button>
       <button type="button" class="btn btn-danger" id="btnReset">Reset all progress</button>
     </div>
   </div>
@@ -155,6 +162,28 @@
   <div class="tone-stage" id="toneStage"></div>
   <div class="tone-buttons" id="toneButtons"></div>
   <div class="feedback-banner" id="toneFeedback" hidden></div>
+</section>
+
+<!-- ─────────────────────────  WRITING / TRACE  ───────────────────────── -->
+<section id="screenTrace" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseTrace" aria-label="Close">✕</button>
+    <div class="flip-title">Write it · 写字</div>
+    <div class="hearts" id="tracePinyin"></div>
+  </header>
+  <div class="trace-wrap">
+    <p class="trace-hint">Trace the grey character with your finger.</p>
+    <div class="trace-stage">
+      <canvas id="traceCanvas"></canvas>
+    </div>
+    <div class="trace-target">Target <b id="traceGlyph"></b></div>
+    <div class="trace-actions">
+      <button type="button" class="btn btn-ghost" id="btnTraceHear">🔊 Hear</button>
+      <button type="button" class="btn btn-ghost" id="btnTraceHearSlow">🐢 Slow</button>
+      <button type="button" class="btn btn-ghost" id="btnTraceClear">↺ Clear</button>
+    </div>
+    <button type="button" class="btn btn-primary btn-xl" id="btnTraceDone">Done · +3 XP</button>
+  </div>
 </section>
 
 <!-- ─────────────────────────  LESSON COMPLETE  ───────────────────────── -->
