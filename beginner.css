@@ -85,6 +85,30 @@
   font-style: italic;
 }
 
+/* ── Sentences ────────────────────────────────────────────────────────
+   A sentence is longer than a single word, so the character line wraps and
+   the type scales down. Punctuation is dimmed to keep the eye on the
+   characters themselves. */
+.sentence-card .teach-zh {
+  width: 100%;
+  text-align: left;
+  font-size: 1.32rem;
+  line-height: 1.65;
+  white-space: normal;
+  word-break: break-word;
+  padding: 10px 12px;
+}
+
+.sent-zh {
+  white-space: pre-wrap;
+}
+
+.sentence-card .teach-py {
+  text-align: left;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
 /* ── Writing / trace ────────────────────────────────────────────────── */
 .trace-wrap {
   flex: 1 1 auto;
@@ -144,7 +168,160 @@
   gap: 8px;
 }
 
+/* ── Onboarding ─────────────────────────────────────────────────────── */
+.screen:focus {
+  outline: none;
+}
+
+.onboard-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px var(--gutter) 16px;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.ob-art {
+  font-size: 4rem;
+  line-height: 1;
+}
+
+.ob-title {
+  margin: 0;
+  font-size: 1.42rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.ob-body {
+  margin: 0;
+  max-width: 34em;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.ob-demo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--path-line);
+}
+
+.ob-demo-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tone-demo {
+  gap: 8px;
+}
+
+.ob-tone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 68px;
+  min-height: 62px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  background: var(--card-elev);
+  border: 1px solid var(--path-line);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ob-tone b {
+  font-size: 1.12rem;
+}
+
+.ob-tone span {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.ob-tone:active {
+  transform: scale(0.95);
+}
+
+.onboard-dots {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ob-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--path-line);
+}
+
+.ob-dot.on {
+  background: var(--primary);
+  transform: scale(1.25);
+}
+
+.onboard-foot {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 10px var(--gutter) calc(14px + var(--safe-b));
+}
+
+/* Visually hidden but announced by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visible focus ring for keyboard users only — a tap should not leave a ring
+ * on every button. */
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 /* ── Settings rows ─────────────────────────────────────────────────── */
+#errorBar {
+  position: fixed;
+  top: calc(var(--safe-t) + 6px);
+  left: 8px;
+  right: 8px;
+  z-index: 100;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #7a1024;
+  color: #fff;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
 .settings {
   display: flex;
   flex-direction: column;
@@ -224,8 +401,67 @@ body[data-theme="imperial"] .btn-primary {
   border-radius: 24px;
 }
 
-/* Trace sheet stays paper-white in every theme: a writing surface should
+/* ── Trace sheet stays paper-white in every theme: a writing surface should
    always read as ink on paper. */
 .trace-stage #traceCanvas {
   background: #f6faf6;
+}
+
+/* ── Tone rows ────────────────────────────────────────────────────────
+   The tone-teach card renders one row per tone. They came out 21px tall —
+   far too small to tap, and they are the primary control on that screen. */
+.tone-teach {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tone-row {
+  min-height: 54px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--card-elev);
+  border: 1px solid var(--path-line);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tone-row .tone-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.tone-row .tone-zh {
+  font-size: 1.3rem;
+  min-width: 1.6em;
+}
+
+.tone-row .tone-py {
+  font-size: 0.88rem;
+  color: var(--muted);
+  min-width: 4.2em;
+}
+
+.tone-row .tone-en {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

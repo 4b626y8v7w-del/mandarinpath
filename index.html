@@ -198,7 +198,9 @@
       <button type="button" class="btn btn-ghost" id="btnTraceHearSlow">🐢 Slow</button>
       <button type="button" class="btn btn-ghost" id="btnTraceClear">↺ Clear</button>
     </div>
-    <button type="button" class="btn btn-primary btn-xl" id="btnTraceDone">Done · +3 XP</button>
+    <button type="button" class="btn btn-primary" id="btnTraceCheck">✓ Check my writing</button>
+    <div class="feedback-banner" id="traceFeedback" hidden></div>
+    <button type="button" class="btn btn-ghost" id="btnTraceDone">Done · next character</button>
   </div>
 </section>
 
@@ -214,6 +216,7 @@
   </div>
 </section>
 
+<div id="errorBar" role="alert" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="xpFloat" class="xp-float" aria-hidden="true" hidden>+25 XP</div>
 <div id="sparkles" class="sparkles" aria-hidden="true"></div>
@@ -221,9 +224,12 @@
 <div id="srLive" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="vocab-data.js"></script>
+<script src="sentences-data.js"></script>
+<script src="strokes-data.js"></script>
 <script src="srs.js"></script>
 <script src="data.js"></script>
 <script src="sfx.js"></script>
+<script src="trace-grade.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

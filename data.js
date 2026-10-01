@@ -13,6 +13,7 @@
   const WORDS = window.MP_WORDS || [];
   const PHRASES = window.MP_PHRASES || {};
   const TRICKY = window.MP_TRICKY || [];
+  const SENT = window.MP_SENTENCES || { patterns: [], sentences: [] };
 
   /* ── Tones ────────────────────────────────────────────────────────────
    * Each entry is a minimal set: same syllable, different tone.
@@ -93,7 +94,9 @@
     { id: "u7", title: "Shop & Eat", titleZh: "买东西和吃饭", titlePinyin: "mǎi dōngxi hé chīfàn", color: "#FF8C33", icon: "🍜", kind: "phrases", group: "Ordering food",
       blurb: "Order food, ask the price, pay." },
     { id: "u8", title: "Sound It Out", titleZh: "发音难点", titlePinyin: "fāyīn nándiǎn", color: "#9E6BF2", icon: "🎧", kind: "tricky",
-      blurb: "The 40 words beginners reliably get wrong — and why." }
+      blurb: "The 40 words beginners reliably get wrong — and why." },
+    { id: "u9", title: "Put It Together", titleZh: "组句", titlePinyin: "zǔ jù", color: "#26B8B3", icon: "💬", kind: "sentences",
+      blurb: "Real sentences. Isolated words are easier than the real thing." }
   ];
 
   const LESSONS_PER_UNIT = 4;
@@ -216,6 +219,43 @@
           exercises: slice.map((p) => ({ type: "phrase", zh: p[0], pinyin: p[1], en: p[2] }))
         });
       }
+    } else if (plan.kind === "sentences") {
+      // Group by situation so the unit stays thematically coherent, and teach
+      // every sentence before testing any of them: a full sentence is a much
+      // bigger retrieval target than a word.
+      const groups = {};
+      (SENT.sentences || []).forEach(function (s) {
+        const g = s.group || "g_other";
+        (groups[g] = groups[g] || []).push(s);
+      });
+      const keys = Object.keys(groups).sort();
+      const targetLessons = LESSONS_PER_UNIT;
+      const perLesson = Math.max(2, Math.ceil((SENT.sentences || []).length / targetLessons));
+      let n = 0;
+      keys.forEach(function (gk) {
+        const list = groups[gk];
+        const chunk = Math.max(1, Math.min(perLesson, Math.ceil(list.length / Math.max(1, Math.ceil(list.length / perLesson)))));
+        for (let i = 0; i < list.length; i += chunk) {
+          const slice = list.slice(i, i + chunk);
+          const ex = slice.map(function (s) {
+            return { type: "sentence", zh: s.zh, pinyin: s.pinyin, en: s.en, group: gk };
+          });
+          slice.forEach(function (s) {
+            const others = shuffle((SENT.sentences || [])
+              .filter(function (x) { return x.en !== s.en; }))
+              .slice(0, 3).map(function (x) { return x.en; });
+            ex.push({ type: "mc", direction: "zh_to_en", prompt: s.zh, pinyin: s.pinyin,
+              options: shuffle(others.concat([s.en])), answer: s.en });
+          });
+          lessons.push({
+            id: plan.id + "-l" + (++n),
+            title: slice[0].en,
+            titleZh: slice[0].zh,
+            xp: 30,
+            exercises: ex
+          });
+        }
+      });
     } else {
       const pool = pickWords(plan.from, plan.to);
       const chunk = Math.max(1, Math.ceil(pool.length / LESSONS_PER_UNIT));

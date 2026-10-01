@@ -321,7 +321,7 @@ window.MP_SENTENCES = {
     { id: "s_sh01", group: "g_shopping", pattern: "p08", zh: "这个多少钱？", pinyin: "zh\u00e8ge du\u014dshao qi\u00e1n?", en: "How much is this?" },
     { id: "s_sh02", group: "g_shopping", pattern: "p08", zh: "那个多少钱？", pinyin: "n\u00e0ge du\u014dshao qi\u00e1n?", en: "How much is that one?" },
     { id: "s_sh03", group: "g_shopping", pattern: "p08", zh: "一件衣服多少钱？", pinyin: "y\u00ed ji\u00e0n y\u012bfu du\u014dshao qi\u00e1n?", en: "How much is this piece of clothing?" },
-    { id: "s_sh04", group: "g_shopping", pattern: "p09", zh: "这个太贵了。", pinyin: "zh\u00e8 t\u00e0i gu\u00ec le.", en: "This is too expensive." },
+    { id: "s_sh04", group: "g_shopping", pattern: "p09", zh: "这个太贵了。", pinyin: "zh\u00e8 g\u00e8 t\u00e0i gu\u00ec le.", en: "This is too expensive." },
     { id: "s_sh05", group: "g_shopping", pattern: "p11", zh: "我要一杯茶。", pinyin: "w\u01d2 y\u00e0o y\u00ec b\u0113i ch\u00e1.", en: "I would like a cup of tea." },
     { id: "s_sh06", group: "g_shopping", pattern: "p11", zh: "我要两个包子。", pinyin: "w\u01d2 y\u00e0o li\u01ceng g\u00e8 b\u0101ozi.", en: "I would like two steamed buns." },
     { id: "s_sh07", group: "g_shopping", pattern: "p10", zh: "我想买这个。", pinyin: "w\u01d2 xi\u01ceng m\u01cei zh\u00e8ge.", en: "I want to buy this." },

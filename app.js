@@ -59,13 +59,32 @@
   }
 
   let saveTimer = null;
+  let saveFailed = false;
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(S));
+        if (saveFailed) {
+          saveFailed = false;
+          const bar = $("#errorBar");
+          if (bar) bar.hidden = true;
+        }
       } catch (e) {
-        toast("Storage full — progress may not save");
+        // Progress lives only in this phone's storage, and iOS evicts unused
+        // web-app data. Failing silently would mean losing a streak with no
+        // warning, so say so loudly and point at the export button.
+        if (!saveFailed) {
+          saveFailed = true;
+          toast("Could not save — export your progress in Settings");
+          const bar = $("#errorBar");
+          if (bar) {
+            bar.hidden = false;
+            bar.textContent =
+              "Progress could not be saved (storage unavailable). " +
+              "Use Settings → Export progress to save a copy.";
+          }
+        }
       }
     }, 150);
   }
@@ -241,12 +260,18 @@
   }
 
   /* Delegated handlers: works for buttons injected at any point, so every
-   * render gets slow-replay without rewiring each screen. */
+   * render gets slow-replay without rewiring each screen.
+   *
+   * Deliberately does NOT stopPropagation. Answer options and tiles carry
+   * data-say so tapping them plays the sound, and they also have their own
+   * click handlers to record the answer. Stopping propagation here made every
+   * Chinese-text option unclickable -- the capture-phase listener ran first
+   * and swallowed the event before the option's own handler was reached. */
   document.addEventListener("click", function (e) {
     const fast = e.target.closest && e.target.closest("[data-say]");
-    if (fast) { e.stopPropagation(); speak(fast.getAttribute("data-say")); return; }
+    if (fast) { speak(fast.getAttribute("data-say")); return; }
     const slow = e.target.closest && e.target.closest("[data-say-slow]");
-    if (slow) { e.stopPropagation(); speakSlow(slow.getAttribute("data-say-slow")); }
+    if (slow) { speakSlow(slow.getAttribute("data-say-slow")); }
   }, true);
 
   /* Rate readout for the settings screen. */
@@ -511,7 +536,7 @@
   let lesson = null;
   let lessonIdx = 0;
   let locked = false;
-  let lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
+  let lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [], retryRounds: 0 };
 
   function startLesson(id) {
     const l = ALL_LESSONS.find((x) => x.id === id);
@@ -519,7 +544,7 @@
     lesson = l;
     lessonIdx = 0;
     locked = false;
-    lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
+    lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [], retryRounds: 0 };
     S.session = { lessonId: id, index: 0 };
     showScreen("screenLesson");
     renderExercise();
@@ -533,7 +558,12 @@
     const hb = $("#lessonHearts b");
     if (hb) hb.textContent = S.hearts;
     const fb = $("#feedbackBanner");
-    if (fb) fb.hidden = true;
+    // Clear, not just hide: a stale Continue button left in the DOM is
+    // invisible to a tapper but still activatable by keyboard and announced
+    // by a screen reader, and it fires against the NEXT exercise.
+    if (fb) { fb.hidden = true; fb.innerHTML = ""; }
+    const tb = $("#traceFeedback");
+    if (tb) { tb.hidden = true; tb.innerHTML = ""; }
     locked = false;
 
     const body = $("#lessonBody");
@@ -569,20 +599,24 @@
       return;
     }
 
-    if (ex.type === "tricky" || ex.type === "phrase") {
+    if (ex.type === "tricky" || ex.type === "phrase" || ex.type === "sentence") {
       const note = ex.type === "tricky" ? ex.note : ex.en;
+      const label = ex.type === "tricky" ? "Common mistake · listen closely"
+        : ex.type === "sentence" ? "Real sentence · read it aloud"
+        : "Say it out loud";
       body.innerHTML =
-        '<div class="dir-label">' + (ex.type === "tricky" ? "Common mistake · listen closely" : "Say it out loud") + "</div>" +
-        '<div class="teach-card">' +
-          '<button type="button" class="teach-zh speakable" id="speakZh">' + esc(ex.zh) + "</button>" +
+        '<div class="dir-label">' + label + "</div>" +
+        '<div class="teach-card' + (ex.type === "sentence" ? " sentence-card" : "") + '">' +
+          '<button type="button" class="teach-zh speakable" data-say="' + esc(ex.zh) + '">' +
+            '<span class="sent-zh">' + esc(ex.zh) + "</span>" +
+          "</button>" +
           '<div class="teach-py">' + esc(ex.pinyin) + "</div>" +
           '<div class="teach-en">' + esc(note) + "</div>" +
-          '<button type="button" class="speaker-btn" id="btnSpeak" aria-label="Play">🔊</button>' +
+          audioControls(ex.zh) +
         "</div>" +
-        '<button type="button" class="btn btn-primary btn-xl" id="btnTeachNext">Understood</button>';
-      const play = () => speak(ex.zh);
-      $("#speakZh").addEventListener("click", play);
-      $("#btnSpeak").addEventListener("click", play);
+        (ex.type === "sentence" && S.settings.showPinyin
+          ? '<p class="teach-hint">Read it once, then hide it and read from the meaning.</p>' : "") +
+        '<button type="button" class="btn btn-primary btn-xl" id="btnTeachNext">Got it — continue</button>';
       $("#btnTeachNext").addEventListener("click", nextExercise);
       return;
     }
@@ -611,10 +645,14 @@
           (ex.pinyin ? '<div class="prompt-py">' + esc(ex.pinyin) + "</div>" : "")
         : '<div class="prompt-en">' + esc(ex.prompt) + "</div>";
       const opts = ex.options.map((o, i) => {
+        // aria-label on every option: an English gloss read aloud is clearer
+        // than "button, button, button" to a screen-reader user, and Chinese
+        // text can be mangled by speech synthesis.
         if (CJK.test(o)) {
-          return '<div class="opt-row"><button type="button" class="opt-btn has-zh" data-i="' + i + '" data-say="' + esc(o) + '">' + esc(o) + "</button></div>";
+          return '<div class="opt-row"><button type="button" class="opt-btn has-zh" data-i="' + i +
+            '" data-say="' + esc(o) + '" aria-label="' + esc(ex.en || ex.prompt || o) + '">' + esc(o) + "</button></div>";
         }
-        return '<button type="button" class="opt-btn" data-i="' + i + '">' + esc(o) + "</button>";
+        return '<button type="button" class="opt-btn" data-i="' + i + '" aria-label="' + esc(o) + '">' + esc(o) + "</button>";
       }).join("");
 
       body.innerHTML =
@@ -848,14 +886,20 @@
     // end-of-lesson summary, so a word you got wrong on item 3 never reappeared
     // until the next spaced-rep session days later. Failing then immediately
     // re-presenting is the cheapest possible moment to repair the gap.
-    if (lessonIdx >= lesson.exercises.length && lessonResults.retry.length) {
+    //
+    // Capped at two rounds. Without the cap a learner who cannot answer
+    // correctly never reaches the end of the lesson -- the wrong items are
+    // spliced back in forever. Two rounds is enough to drill without
+    // trapping anyone; anything still wrong is already queued for spaced review.
+    if (lessonIdx >= lesson.exercises.length && lessonResults.retry.length && lessonResults.retryRounds < 2) {
       const retry = lessonResults.retry.splice(0, 3);
       if (retry.length) {
+        lessonResults.retryRounds++;
         lesson.exercises = lesson.exercises.concat(retry);
         lessonIdx = lesson.exercises.length - retry.length;
         const fb = $("#feedbackBanner");
-        if (fb) fb.hidden = true;
-        toast("Let's practice those again");
+        if (fb) { fb.hidden = true; fb.innerHTML = ""; }
+        toast("Let's practice those again · round " + lessonResults.retryRounds + " of 2");
         S.session.index = lessonIdx;
         save();
         renderExercise();
@@ -897,6 +941,35 @@
     setTab("practice");
     toast("XP claimed — " + dueCount() + " cards due");
   }
+
+  /* ── Error resilience ────────────────────────────────────────────────
+   * A language app that white-screens on a bad click is worse than useless,
+   * and the learner has no console to look at. Every uncaught error surfaces
+   * as a visible, recoverable notice, and progress-saving failures stop
+   * silently swallowing data. */
+  let errorCount = 0;
+
+  function showError(message) {
+    errorCount++;
+    console.error("[MandarinPath]", message);
+    const el = $("#errorBar");
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = "Something went wrong (" + errorCount + "): " + message +
+      " — your progress is safe.";
+    el.hidden = false;
+    // Auto-dismiss so a transient hiccup does not leave a permanent banner.
+    clearTimeout(showError._t);
+    showError._t = setTimeout(function () { el.hidden = true; }, 6000);
+  }
+
+  window.addEventListener("error", function (e) {
+    showError(e.message || "unexpected error");
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    const r = e.reason;
+    showError((r && r.message) || "background task failed");
+  });
 
   /* ── Onboarding ─────────────────────────────────────────────────────
    * Four cards, shown once. The two that matter most for a total beginner:
@@ -1028,6 +1101,10 @@
    * offered for single characters, where it actually makes sense. */
   let traceCtx = null;
   let traceDrawn = false;
+  let traceStrokes = [];
+  let traceResult = null;
+  let traceAttempts = 0;
+  let tracePasses = 0;
   // Module-level so paintGuide() can reach the current glyph: it is only ever
   // a local inside openTrace(), which left the guide glyph unreferenced.
   let traceGlyph = "";
@@ -1124,6 +1201,8 @@
     const cv = $("#traceCanvas");
     if (!cv) return;
     let active = false;
+    let currentStroke = null;
+    traceStrokes = [];
 
     function pos(ev) {
       const r = cv.getBoundingClientRect();
@@ -1135,6 +1214,8 @@
       ev.preventDefault();
       active = true;
       const p = pos(ev);
+      currentStroke = { pts: [[p.x, p.y]] };
+      traceStrokes.push(currentStroke);
       const c = cv.getContext("2d");
       c.beginPath();
       c.moveTo(p.x, p.y);
@@ -1150,9 +1231,17 @@
       c.lineCap = "round";
       c.lineJoin = "round";
       c.stroke();
+      if (currentStroke) {
+        const last = currentStroke.pts[currentStroke.pts.length - 1];
+        // Drop near-duplicate points: a slow finger fires dozens of mousemove
+        // events per millimetre and they slow the grader without adding shape.
+        if (!last || Math.hypot(p.x - last[0], p.y - last[1]) > 3) {
+          currentStroke.pts.push([p.x, p.y]);
+        }
+      }
       traceDrawn = true;
     }
-    function up() { active = false; }
+    function up() { active = false; currentStroke = null; }
 
     cv.addEventListener("mousedown", down);
     cv.addEventListener("mousemove", move);
@@ -1160,9 +1249,14 @@
     cv.addEventListener("touchstart", down, { passive: false });
     cv.addEventListener("touchmove", move, { passive: false });
     cv.addEventListener("touchend", up);
+    cv.addEventListener("touchcancel", up);
 
     $("#btnTraceClear").addEventListener("click", function () {
       traceDrawn = false;
+      traceStrokes = [];
+      traceResult = null;
+      const fb = $("#traceFeedback");
+      if (fb) fb.hidden = true;
       paintGuide();
     });
     $("#btnTraceHear").addEventListener("click", function () {
@@ -1171,32 +1265,89 @@
     $("#btnTraceHearSlow").addEventListener("click", function () {
       speakSlow($("#screenTrace").dataset.zh || "");
     });
+    $("#btnTraceCheck").addEventListener("click", checkTrace);
     $("#btnTraceDone").addEventListener("click", function () {
       if (!traceDrawn) { toast("Trace the character first"); return; }
-      sfx.reward();
-      S.xp += 3;
+      // Score before awarding: an unscored attempt still counts, but the
+      // learner is told what they actually wrote.
+      const res = checkTrace(true);
+      const ok = !res || res.verdict === "great" || res.verdict === "good";
+      sfx[ok ? "reward" : "correct"]();
+      S.xp += ok ? 3 : 1;
+      traceAttempts = (traceAttempts || 0) + 1;
+      if (ok) tracePasses = (tracePasses || 0) + 1;
       touchStreak();
       save();
       updateStats();
 
-      // If Write mode supplied a queue, step to the next character in place.
       if (writeQueue.length && writeIdx < writeQueue.length - 1) {
         writeIdx++;
-        openTrace(writeQueue[writeIdx].zh, writeQueue[writeIdx].pinyin);
+        setTimeout(function () {
+          openTrace(writeQueue[writeIdx].zh, writeQueue[writeIdx].pinyin);
+        }, 700);
         return;
       }
       if (writeQueue.length) {
         toast("Write session done · " + writeQueue.length + " characters");
         writeQueue = [];
       } else {
-        toast("Nice writing · +3 XP");
+        toast(ok ? "Nice writing · +3 XP" : "Keep practising · +1 XP");
       }
-      toMain(writeQueue.length ? "practice" : "learn");
+      setTimeout(function () { toMain(writeQueue.length ? "practice" : "learn"); }, 700);
     });
     $("#btnCloseTrace").addEventListener("click", () => toMain("learn"));
     window.addEventListener("resize", () => {
       if (!$("#screenTrace").hidden) paintGuide();
     });
+  }
+
+  /* Score the ink against the reference, when we have reference data for the
+   * character. Without stroke data (most characters) we fall back to an
+   * honest "ink present" pass rather than pretending to grade. */
+  function checkTrace(quiet) {
+    const glyph = ($("#screenTrace").dataset.zh || "").slice(0, 1);
+    const fb = $("#traceFeedback");
+    const ref = (window.MP_STROKES || {})[glyph];
+
+    if (!traceDrawn) {
+      if (!quiet) toast("Trace the character first");
+      return null;
+    }
+    if (!ref || !ref.strokes || !ref.strokes.length || !window.MP_TRACE) {
+      if (fb) {
+        fb.hidden = false;
+        fb.className = "feedback-banner ok rich";
+        fb.innerHTML = "<span>✓ Ink drawn — stroke detail unavailable for this character</span>";
+      }
+      return { score: 0.5, verdict: "good", noReference: true };
+    }
+
+    const cv = $("#traceCanvas");
+    const side = Math.min(cv.clientWidth, cv.clientHeight);
+    // The captured points are canvas-relative (wireTrace subtracts the canvas
+    // rect when recording), so the grading box must be in canvas-local
+    // coordinates too. Passing viewport coords here clamped every point to
+    // (0,0) and scored a perfect trace 0%.
+    const box = { x: 0, y: 0, w: side, h: side };
+
+    const strokes = traceStrokes.map(function (s) {
+      return { pts: s.pts.map(function (p) { return [p[0], p[1]]; }) };
+    });
+
+    const res = window.MP_TRACE.grade(strokes, ref, box);
+    traceResult = res;
+    const msg = (window.MP_TRACE.MESSAGES || {})[res.verdict] || { text: "Done", tone: "ok" };
+    if (fb) {
+      fb.hidden = false;
+      fb.className = "feedback-banner " + (msg.tone === "ok" ? "ok" : "bad") + " rich";
+      fb.innerHTML =
+        "<div class=\"fb-main\"><div class=\"fb-title\">" + esc(msg.text) + "</div>" +
+        '<div class="fb-pair">shape match ' + Math.round(res.score * 100) + "%" +
+        " · " + res.strokesDrawn + " stroke" + (res.strokesDrawn === 1 ? "" : "s") +
+        " drawn, " + res.strokesExpected + " expected</div></div>";
+    }
+    announce(msg.text + " " + Math.round(res.score * 100) + " percent shape match.");
+    return res;
   }
 
   /* ── SRS review ────────────────────────────────────────────────────── */
@@ -1232,7 +1383,9 @@
     const fill = $("#reviewProgressFill");
     if (fill) fill.style.width = (reviewIdx / reviewCards.length) * 100 + "%";
     const fb = $("#reviewFeedback");
-    if (fb) fb.hidden = true;
+    // Same reason as the lesson banner: a hidden stale button still responds
+    // to keyboard activation and to a screen reader.
+    if (fb) { fb.hidden = true; fb.innerHTML = ""; }
     $("#reviewHearts b").textContent = S.hearts;
 
     const distractors = M.shuffle(M.ALL_CARDS.filter((w) => w.zh !== item.zh)).slice(0, 3)
@@ -1247,7 +1400,7 @@
         '<button type="button" class="speaker-btn" id="btnSpeakR" aria-label="Play">🔊</button>' +
       "</div>" +
       '<div class="opt-list">' +
-        options.map((o, i) => '<button type="button" class="opt-btn" data-i="' + i + '">' + esc(o) + "</button>").join("") +
+        options.map((o, i) => '<button type="button" class="opt-btn" data-i="' + i + '" aria-label="' + esc(o) + '">' + esc(o) + "</button>").join("") +
       "</div>";
     $("#btnSpeakR").addEventListener("click", () => speak(item.zh));
 
@@ -1431,6 +1584,7 @@
         $("#toneNext").addEventListener("click", function () {
           toneIdx++;
           fb.hidden = true;
+          fb.innerHTML = "";
           renderToneRound();
         });
       });
@@ -1765,7 +1919,7 @@
         const l = u.lessons.find((x) => x.id === id);
         if (!l) return false;
         lesson = l; lessonIdx = 0;
-        lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
+        lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [], retryRounds: 0 };
         return true;
       },
       current: function () { return lesson.exercises[lessonIdx]; },
