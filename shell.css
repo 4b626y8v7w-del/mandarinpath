@@ -1,0 +1,434 @@
+/* MandarinPath app shell.
+ *
+ * The imported demo stylesheet styles a marketing phone mockup and names its
+ * parts .phone-screen / .tab-bar / .lesson-header / .main-body. This app's
+ * markup uses .screen / .tabbar / .lesson-head / .lesson-body, so none of that
+ * shell layout applied. Everything here supplies the real fixed-viewport shell.
+ *
+ * Target: iPhone 14 Pro Max (430x932 CSS px) and equivalent, in standalone
+ * PWA mode where the status bar and home indicator overlay the content.
+ */
+
+:root {
+  /* Real device metrics, plus a floor so small screens stay usable. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --topbar-h: 52px;
+  --tabbar-h: 58px;
+  --gutter: 18px;
+}
+
+/* ── Shell ────────────────────────────────────────────────────────────
+ * The app owns the viewport: the document never scrolls, individual panels
+ * do. iOS Safari resizes the viewport when its URL bar collapses, so 100dvh
+ * is the correct unit; 100vh is only the fallback for older engines. */
+html,
+body {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+  overflow: hidden;
+}
+
+/* iOS standalone reports 100dvh including the safe areas; keep content clear
+ * of the Dynamic Island and the home indicator. */
+#screenSplash,
+#screenComplete {
+  padding-top: calc(var(--safe-t) + 12px);
+  padding-bottom: calc(var(--safe-b) + 16px);
+}
+
+.splash-wrap,
+.complete-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px var(--gutter);
+  overflow-y: auto;
+}
+
+/* ── Main screen: topbar / scrolling panel / bottom tabbar ─────────── */
+#screenMain {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.topbar {
+  flex: 0 0 auto;
+  min-height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  padding: calc(var(--safe-t) + 6px) var(--gutter) 6px;
+  background: var(--screen);
+  border-bottom: 1px solid rgba(155, 176, 163, 0.12);
+}
+
+/* In the markup the tabbar sits between the topbar and the panels, so flex
+ * order moves it to the visual bottom instead of restructuring the HTML. */
+#screenMain > .tab-panel {
+  order: 2;
+}
+
+#screenMain > .tabbar {
+  order: 3;
+}
+
+/* The panel is the only scrolling region on this screen. */
+.tab-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 14px var(--gutter) 24px;
+}
+
+.tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  height: calc(var(--tabbar-h) + var(--safe-b));
+  padding: 0 6px var(--safe-b);
+  background: rgba(18, 28, 23, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(155, 176, 163, 0.16);
+}
+
+.tabbar .tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.66rem;
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabbar .tab.active {
+  color: var(--primary);
+}
+
+.tab-ico {
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+.tab-lab {
+  font-size: 0.62rem;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.tabbar .badge {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  margin-left: 6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--heart);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+/* ── Lesson / review / card / tone screens ─────────────────────────── */
+.lesson-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: calc(var(--safe-t) + 6px) var(--gutter) 8px;
+  background: var(--screen);
+}
+
+/* The exercise area scrolls; the feedback bar and buttons stay put. */
+.lesson-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 10px var(--gutter) 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lesson-body > * {
+  flex: 0 0 auto;
+}
+
+/* Feedback bar pinned to the bottom, clear of the home indicator. */
+.feedback-banner {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px var(--gutter) calc(14px + var(--safe-b));
+  border-radius: 0;
+}
+
+.progress-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hearts {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Flip Match ────────────────────────────────────────────────────── */
+.flip-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 var(--gutter) 8px;
+  text-align: center;
+}
+
+.flip-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: minmax(84px, 1fr);
+  gap: 10px;
+  padding: 4px var(--gutter) 20px;
+}
+
+/* ── Flashcards ────────────────────────────────────────────────────── */
+.card-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px var(--gutter);
+  overflow-y: auto;
+}
+
+.flashcard {
+  width: 100%;
+  max-width: 460px;
+  min-height: 260px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid rgba(155, 176, 163, 0.16);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-grades {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px var(--gutter) calc(12px + var(--safe-b));
+}
+
+.grade-btn {
+  /* Four across a 430pt screen leaves ~92pt per button; without an explicit
+   * height the label rendered 19px tall, which is well under a thumb target. */
+  min-height: 56px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+/* ── Tone Trainer ──────────────────────────────────────────────────── */
+.tone-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px var(--gutter);
+  overflow-y: auto;
+}
+
+.tone-buttons {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px var(--gutter) calc(12px + var(--safe-b));
+}
+
+.tone-btn {
+  /* Same problem as .grade-btn: bare labels collapsed to ~19px tall. The tone
+   * number is the whole point of the control, so it needs real presence. */
+  min-height: 64px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 14px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tone-btn span {
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Touch targets ─────────────────────────────────────────────────── */
+.icon-btn,
+.speaker-btn,
+.grade-btn,
+.tone-btn {
+  touch-action: manipulation;
+}
+
+.btn {
+  min-height: 48px;          /* comfortable thumb target */
+  padding: 13px 20px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-xl {
+  min-height: 54px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.opt-btn,
+.tile,
+.flip-tile {
+  min-height: 52px;
+  touch-action: manipulation;
+}
+
+/* The path zigzags via an inline translateX(-/+36px) on .node-row. On a
+ * 430pt-wide screen that pushed the left-hand nodes past the viewport edge.
+ * Re-centre them and let the zigzag be purely decorative. */
+.node-row {
+  transform: none !important;
+  max-width: 100%;
+}
+
+.learn-path {
+  overflow-x: hidden;
+}
+button {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Landscape / short viewports ───────────────────────────────────── */
+@media (max-height: 700px) {
+  :root {
+    --topbar-h: 46px;
+    --tabbar-h: 52px;
+    --gutter: 14px;
+  }
+
+  .lesson-body,
+  .tab-panel {
+    gap: 10px;
+  }
+}
+
+/* Larger phones (Pro Max / Pro) get slightly more generous spacing without
+ * letting the layout look stretched on a 430pt-wide screen. */
+@media (min-width: 420px) {
+  :root {
+    --gutter: 20px;
+  }
+}
+
+@media (min-width: 480px) {
+  .tab-panel,
+  .lesson-body,
+  .card-stage {
+    max-width: 560px;
+    width: 100%;
+    margin-inline: auto;
+  }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
