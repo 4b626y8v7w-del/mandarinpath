@@ -419,8 +419,21 @@
     }
   }
 
+  /* The review key for a word.
+   *
+   * All pinyin whitespace is stripped first: the bundles write 你好 as both
+   * "nǐhǎo" and "nǐ hǎo", and because the key is zh|pinyin that split one
+   * word's review history into two independent cards. Word spacing in pinyin
+   * is a readability convention, not part of the pronunciation, so removing it
+   * cannot merge two genuinely different words -- only two spellings of the
+   * same syllables.
+   *
+   * Different pinyin for the same characters is NOT normalised: 得 de (the
+   * particle) and 得 dé (to obtain) are genuinely different words and deserve
+   * separate cards. */
   function cardKey(zh, pinyin) {
-    return zh + "|" + (pinyin || "");
+    const norm = String(pinyin || "").replace(/\s+/g, "");
+    return zh + "|" + norm;
   }
 
   /* ── Curriculum helpers ────────────────────────────────────────────── */

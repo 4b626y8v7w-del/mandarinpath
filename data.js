@@ -260,23 +260,47 @@
     return shuffle(picked).slice(0, n + 1);
   }
 
-  /* One grammar tip per unit, chosen deterministically so the same unit always
-   teaches the same note. Notes are addressed by unit id in the data bundle. */
+  /* One grammar tip per lesson.
+   *
+   * The note bundle was written against a DIFFERENT outline than this
+   * curriculum: its "u2" means particles while ours means First Words, its
+   * "u3" means word order while ours means People & Family, and so on. Routing
+   * by id alone put 55 of 70 notes in the wrong unit -- particle notes inside
+   * First Words, measure words inside Shop & Eat.
+   *
+   * So the bundle's semantic groups are remapped onto this curriculum's units
+   * explicitly. NOTE_GROUP_SOURCE documents which of the bundle's own unit ids
+   * each curriculum unit draws from. */
+  const NOTE_GROUP_SOURCE = {
+    u1: ["u1"],   // tones
+    u2: ["u2"],   // particles — foundational, taught with the first words
+    u3: ["u3", "u9"], // word order: reinforced in People & Family AND where
+                      // sentences are actually built
+    u7: ["u10"],  // measure words live with Numbers & Time
+    u6: ["u6"],   // time and place — already correct
+    u8: ["u4"]    // common errors, surfaced in Daily Life
+  };
+
   const grammarByUnit = {};
   GRAMMAR.forEach((n) => {
-    if (n && n.unit && !grammarByUnit[n.unit]) grammarByUnit[n.unit] = n;
+    if (!n || !n.unit) return;
+    const targets = NOTE_GROUP_SOURCE[n.unit] || [];
+    // A note can legitimately serve more than one unit, so assign to all of
+    // them rather than first-match-wins.
+    targets.forEach((t) => {
+      const list = grammarByUnit[t] || (grammarByUnit[t] = []);
+      list.push(n);
+    });
   });
 
   let grammarCursor = 0;
   function grammarForUnit(unitId) {
-    if (!unitId) return null;
-    const direct = grammarByUnit[unitId];
-    if (direct) return direct;
-    // Fall back to cycling through all notes so no unit is left without one
-    // once the bundles are loaded.
-    const pool = GRAMMAR.filter((n) => n && n.zh);
-    if (!pool.length) return null;
-    return pool[(grammarCursor++) % pool.length];
+    const list = grammarByUnit[unitId];
+    if (!list || !list.length) return null;
+    // Deterministic rotation rather than randomness: the same unit always
+    // leads with the same note, so a learner working through it sees the
+    // foundational points first every time.
+    return list[(grammarCursor++) % list.length];
   }
 
   function lessonFromWords(lessonId, words, unitTitle, xp, distractorPool, unitId) {
@@ -429,6 +453,8 @@
             ex.push({ type: "listen", prompt: s.zh, pinyin: s.pinyin,
               options: shuffle(others.concat([s.zh])), answer: s.zh });
           });
+          const sNote = grammarForUnit(plan.id);
+          if (sNote) ex.push({ type: "grammar", note: sNote });
           lessons.push({
             id: plan.id + "-l" + (++n),
             title: slice[0].en,
@@ -470,6 +496,8 @@
             ex.push({ type: "mc", direction: "zh_to_en", prompt: x.zh, pinyin: x.pinyin,
               options: shuffle(others.concat([x.zh])), answer: x.zh, numeric: true });
           });
+          const sNote = grammarForUnit(plan.id);
+          if (sNote) ex.push({ type: "grammar", note: sNote });
           lessons.push({
             id: plan.id + "-l" + (++n),
             title: slice[0].en,
@@ -496,6 +524,25 @@
   });
 
   /* Every vocabulary word becomes a reviewable card, keyed by HSK band. */
+  /* The numbers bundle repeats words the learner already has cards for
+   * (个, 今天, 现在, 一点, 时间, ...). A second card for the same word splits
+   * its review history in half and makes the "words introduced" count
+   * dishonest, so those entries are dropped from the deck -- the word is still
+   * taught inside the Numbers unit, it just does not become a second card. */
+  const existingHeadwords = new Set(
+    WORDS.map((w) => w.zh)
+      .concat(WORDS2.map((w) => w.zh))
+      .concat(Object.keys(PHRASES).flatMap((g) => PHRASES[g].map((p) => p[0])))
+  );
+  const numWord = (x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: x.hsk });
+  const numEntries = [].concat(
+    (NUMBERS.numbers || []).map((x) => numWord({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "number" })),
+    (NUMBERS.measures || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "measure" })),
+    (NUMBERS.dates || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "date" })),
+    (NUMBERS.times || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "time" }))
+  );
+  const NUM_CARDS = numEntries.filter((x) => !existingHeadwords.has(x.zh));
+
   const DECKS = [
     { id: "hsk1", label: "HSK 1 · first 100", words: WORDS.slice(0, 100) },
     { id: "hsk2", label: "HSK 2 · 101-250", words: WORDS.slice(100, 250) },
@@ -506,11 +553,7 @@
     { id: "tricky", label: "Tricky sounds", words: TRICKY.map((t) => ({ zh: t.zh, pinyin: t.pinyin, en: t.note, hsk: "—" })) },
     { id: "phrases", label: "Everyday phrases", words: Object.keys(PHRASES).flatMap((g) =>
       PHRASES[g].map((p) => ({ zh: p[0], pinyin: p[1], en: p[2], hsk: g }))) },
-    { id: "numbers", label: "Numbers, measures, time", words: []
-        .concat((NUMBERS.numbers || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "number" })))
-        .concat((NUMBERS.measures || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "measure" })))
-        .concat((NUMBERS.dates || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "date" })))
-        .concat((NUMBERS.times || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "time" }))) }
+    { id: "numbers", label: "Numbers, measures, time · " + NUM_CARDS.length, words: NUM_CARDS }
   ];
 
   const ALL_CARDS = DECKS.flatMap((d) => d.words.map((w) => ({ deck: d.id, zh: w.zh, pinyin: w.pinyin, en: w.en })));
