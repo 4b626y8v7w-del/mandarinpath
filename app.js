@@ -35,7 +35,8 @@
         theme: "jade",
         tracePractice: true
       },
-      session: { lessonId: null, index: 0 }
+      session: { lessonId: null, index: 0 },
+      onboarded: false
     };
   }
 
@@ -307,13 +308,36 @@
   }
 
   function showScreen(id) {
-    ["screenSplash", "screenMain", "screenLesson", "screenReview", "screenFlip",
+    ["screenSplash", "screenOnboard", "screenMain", "screenLesson", "screenReview", "screenFlip",
      "screenCards", "screenTones", "screenTrace", "screenComplete"].forEach((s) => {
       const n = document.getElementById(s);
       if (n) n.hidden = s !== id;
     });
     window.scrollTo(0, 0);
+    // Move focus to the new screen so keyboard and screen-reader users are not
+    // left behind on the previous one.
+    const panel = document.getElementById(id);
+    if (panel) {
+      panel.setAttribute("tabindex", "-1");
+      setTimeout(function () {
+        try { panel.focus({ preventScroll: true }); } catch (e) { panel.focus(); }
+      }, 40);
+    }
+    announce(SCREEN_NAMES[id] || "");
   }
+
+  const SCREEN_NAMES = {
+    screenSplash: "MandarinPath home",
+    screenOnboard: "Welcome tour",
+    screenMain: "Main menu",
+    screenLesson: "Lesson",
+    screenReview: "Review session",
+    screenFlip: "Flip Match game",
+    screenCards: "Flashcards",
+    screenTones: "Tone Trainer",
+    screenTrace: "Writing practice",
+    screenComplete: "Lesson complete"
+  };
 
   function toast(msg) {
     const t = $("#toast");
@@ -322,6 +346,17 @@
     t.hidden = false;
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { t.hidden = true; }, 2200);
+    announce(msg);
+  }
+
+  /* Screen-reader announcements. Quiz feedback and state changes are otherwise
+   * silent to VoiceOver, so a blind learner gets no signal that an answer was
+   * right. Cleared and rewritten so repeat messages are re-announced. */
+  function announce(msg) {
+    const live = $("#srLive");
+    if (!live) return;
+    live.textContent = "";
+    setTimeout(function () { live.textContent = msg; }, 30);
   }
 
   function floatXP(n) {
@@ -476,7 +511,7 @@
   let lesson = null;
   let lessonIdx = 0;
   let locked = false;
-  let lessonResults = { correct: 0, total: 0, wrongItems: [] };
+  let lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
 
   function startLesson(id) {
     const l = ALL_LESSONS.find((x) => x.id === id);
@@ -484,7 +519,7 @@
     lesson = l;
     lessonIdx = 0;
     locked = false;
-    lessonResults = { correct: 0, total: 0, wrongItems: [] };
+    lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
     S.session = { lessonId: id, index: 0 };
     showScreen("screenLesson");
     renderExercise();
@@ -743,17 +778,30 @@
         ensureCard(word);
         save();
       }
+      // Getting it right the second time removes it from the retry pile.
+      if (detail.zh) {
+        lessonResults.retry = lessonResults.retry.filter((r) => r.prompt !== detail.prompt);
+      }
       showFeedback(true, "Nice!", detail);
     } else {
       lessonResults.wrongItems.push(detail);
+      // Queue the actual exercise for a re-run at the end of this lesson.
+      // Only quiz types: re-showing a "teach" card would just re-teach it.
+      const cur = lesson.exercises[lessonIdx];
+      if (cur && cur.type !== "teach" && !lessonResults.retry.some((r) => r === cur)) {
+        lessonResults.retry.push(cur);
+      }
       S.hearts = Math.max(0, S.hearts - 1);
       const hb = $("#lessonHearts b");
       if (hb) hb.textContent = S.hearts;
       sfx.wrong();
-      showFeedback(false, "Not quite", detail);
+      // Beginner-friendly framing: never scold. "Not quite" + showing the
+      // answer is enough; the item is also re-queued at the end of the lesson,
+      // so the message can honestly promise another chance.
+      showFeedback(false, "Not quite — here's the answer", detail);
       if (S.hearts <= 0) {
         S.hearts = S.maxHearts;
-        toast("Hearts refilled — keep going");
+        toast("Hearts refilled — no penalty, keep going");
         save();
       }
     }
@@ -795,6 +843,25 @@
 
   function nextExercise() {
     lessonIdx++;
+    // Beginner re-queue: an item missed earlier in THIS lesson comes back
+    // before the lesson ends. Previously wrongItems was only counted for the
+    // end-of-lesson summary, so a word you got wrong on item 3 never reappeared
+    // until the next spaced-rep session days later. Failing then immediately
+    // re-presenting is the cheapest possible moment to repair the gap.
+    if (lessonIdx >= lesson.exercises.length && lessonResults.retry.length) {
+      const retry = lessonResults.retry.splice(0, 3);
+      if (retry.length) {
+        lesson.exercises = lesson.exercises.concat(retry);
+        lessonIdx = lesson.exercises.length - retry.length;
+        const fb = $("#feedbackBanner");
+        if (fb) fb.hidden = true;
+        toast("Let's practice those again");
+        S.session.index = lessonIdx;
+        save();
+        renderExercise();
+        return;
+      }
+    }
     if (lessonIdx >= lesson.exercises.length) {
       finishLesson();
     } else {
@@ -829,6 +896,128 @@
     showScreen("screenMain");
     setTab("practice");
     toast("XP claimed — " + dueCount() + " cards due");
+  }
+
+  /* ── Onboarding ─────────────────────────────────────────────────────
+   * Four cards, shown once. The two that matter most for a total beginner:
+   * tones change meaning, and the turtle button replays audio slowly. */
+  const ONBOARD_STEPS = [
+    {
+      art: "🐉",
+      title: "Welcome to MandarinPath",
+      body: "Learn Mandarin the way it actually works: listening first, characters second. Everything here runs offline on this phone."
+    },
+    {
+      art: "🎵",
+      title: "Tones change the meaning",
+      body: "The same syllable with a different tone is a different word. mā = mom, má = hemp, mǎ = horse, mà = to scold. We drill these before anything else, because getting them wrong makes everything else harder.",
+      demo: "tones"
+    },
+    {
+      art: "🐢",
+      title: "Slow it down",
+      body: "Every sound has two buttons: 🔊 to play it, 🐢 to play it slower. Use the turtle as much as you like — the speed setting in Settings goes all the way down to half speed. Nothing is timed.",
+      demo: "audio"
+    },
+    {
+      art: "✍️",
+      title: "See it, hear it, write it",
+      body: "Every word shows characters, pinyin, and English before you answer. Then you can trace the character with your finger and the app checks the shape. Nothing is timed and nothing is graded harshly."
+    }
+  ];
+
+  let onboardIdx = 0;
+
+  function renderOnboard() {
+    const step = ONBOARD_STEPS[onboardIdx];
+    $("#onboardDots").innerHTML = ONBOARD_STEPS.map((_, i) =>
+      '<span class="ob-dot' + (i === onboardIdx ? " on" : "") + '"></span>').join("");
+    $("#btnOnboardBack").hidden = onboardIdx === 0;
+    $("#btnOnboardNext").textContent = onboardIdx === ONBOARD_STEPS.length - 1 ? "Start" : "Next";
+
+    let demo = "";
+    if (step.demo === "tones") {
+      demo = '<div class="ob-demo tone-demo">' +
+        ["mā", "má", "mǎ", "mà"].map((s, i) =>
+          '<button type="button" class="ob-tone" data-say="' + ["妈", "麻", "马", "骂"][i] + '">' +
+          '<b>' + s + "</b><span>" + ["mom", "hemp", "horse", "scold"][i] + "</span></button>").join("") +
+        "</div>";
+    } else if (step.demo === "audio") {
+      demo = '<div class="ob-demo">' +
+        '<button type="button" class="speaker-btn" data-say="你好" aria-label="Play">🔊</button>' +
+        '<button type="button" class="speaker-btn slow" data-say-slow="你好" aria-label="Play slowly">🐢</button>' +
+        '<span class="ob-demo-note">same word, two speeds</span>' +
+        "</div>";
+    }
+
+    $("#onboardWrap").innerHTML =
+      '<div class="ob-art" aria-hidden="true">' + step.art + "</div>" +
+      '<h2 class="ob-title">' + esc(step.title) + "</h2>" +
+      '<p class="ob-body">' + esc(step.body) + "</p>" + demo;
+
+    announce(step.title + ". " + step.body);
+  }
+
+  function finishOnboarding() {
+    S.onboarded = true;
+    save();
+    toMain("learn");
+  }
+
+  /* ── Data export / import ───────────────────────────────────────────
+   * iOS evicts web-app storage after ~7 days of disuse, and clearing Safari
+   * data wipes it too. Without an escape hatch a learner can lose everything
+   * with no way back. Export writes a file the user owns; import restores it. */
+  function exportData() {
+    const payload = JSON.stringify({ app: "mandarinpath", version: 1, exported: new Date().toISOString(), state: S }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "mandarinpath-progress-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast("Progress exported");
+  }
+
+  function importData() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.addEventListener("change", function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const parsed = JSON.parse(reader.result);
+          const incoming = parsed && parsed.state ? parsed.state : parsed;
+          if (!incoming || typeof incoming !== "object" || !incoming.cards) {
+            toast("That file is not MandarinPath data");
+            return;
+          }
+          const done = Object.keys(incoming.completed || {}).length;
+          if (!window.confirm("Replace your current progress?\n\nImported: " + done +
+            " lessons, " + Object.keys(incoming.cards).length + " review cards.")) return;
+          const base = defaultState();
+          S = Object.assign(base, incoming, {
+            settings: Object.assign(base.settings, incoming.settings || {}),
+            session: { lessonId: null, index: 0 }
+          });
+          applyTheme();
+          applySpeechSettings();
+          save();
+          toMain("learn");
+          toast("Progress restored");
+        } catch (e) {
+          toast("Could not read that file");
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
   }
 
   /* ── Writing practice (trace + self-check) ─────────────────────────
@@ -882,12 +1071,16 @@
     const dpr = Math.min(3, window.devicePixelRatio || 1);
     // The grid must be square: the 田字格 guide and the guide glyph are both
     // drawn against cssW/cssH, so a non-square box yields a distorted grid.
-    // Measure the stage (which is flex-sized), then force a square CSS box
-    // before reading it back. Without this, CSS `aspect-ratio` + `height:auto`
-    // loses to the pixel assignment below and the canvas collapses.
+    // Settle the width first (letting CSS max-width/aspect-ratio apply), read
+    // the real rendered width back, then pin height to it. Forcing an inline
+    // square fights the stylesheet's `height:auto` + flex stretch, which is
+    // what left the canvas 340x360 with off-centre guides.
     const stage = cv.parentElement;
-    const avail = (stage && stage.clientWidth) || cv.clientWidth || 320;
-    const side = Math.max(180, Math.min(360, Math.floor(avail)));
+    cv.style.height = "auto";
+    cv.style.width = "100%";
+    const avail = Math.round(cv.getBoundingClientRect().width) ||
+      Math.round((stage && stage.clientWidth) || 320);
+    const side = Math.max(180, Math.min(360, avail));
     cv.style.width = side + "px";
     cv.style.height = side + "px";
     const cssW = side;
@@ -1447,8 +1640,20 @@
       // Any audio or speech call before this gesture is blocked on iOS.
       ac();
       speak("nǐ hǎo");
-      toMain("learn");
+      if (S.onboarded) toMain("learn");
+      else { onboardIdx = 0; showScreen("screenOnboard"); renderOnboard(); }
     });
+
+    // ── Onboarding controls ──
+    $("#btnOnboardNext").addEventListener("click", function () {
+      if (onboardIdx >= ONBOARD_STEPS.length - 1) { finishOnboarding(); return; }
+      onboardIdx++;
+      renderOnboard();
+    });
+    $("#btnOnboardBack").addEventListener("click", function () {
+      if (onboardIdx > 0) { onboardIdx--; renderOnboard(); }
+    });
+    $("#btnSkipOnboard").addEventListener("click", finishOnboarding);
 
     $("#btnCloseLesson").addEventListener("click", () => toMain("learn"));
     $("#btnCloseReview").addEventListener("click", () => toMain("practice"));
@@ -1500,6 +1705,20 @@
       applyTheme();
       save();
     });
+    $("#btnExport").addEventListener("click", exportData);
+    $("#btnImport").addEventListener("click", importData);
+    $("#btnCheckVoice").addEventListener("click", function () {
+      // Force a re-resolve: a voice may have been installed since page load.
+      zhVoice = null;
+      voicesResolvedAt = 0;
+      const v = resolveVoice();
+      if (!v) {
+        toast("No Mandarin voice — Settings › Accessibility › Spoken Content");
+      } else {
+        toast("Voice found: " + v.name);
+        speak("你好");
+      }
+    });
     $("#btnReset").addEventListener("click", function () {
       if (!window.confirm("Erase all XP, streaks and review cards? This cannot be undone.")) return;
       S = defaultState();
@@ -1536,5 +1755,26 @@
     boot();
   }
 
-  window.MP_APP = { state: () => S, speak: speak, reset: () => { S = defaultState(); save(); } };
+  window.MP_APP = { state: () => S, speak: speak, reset: () => { S = defaultState(); save(); },
+    // Test hook: exercises nextExercise/gradeExercise without driving the DOM.
+    // Used by test-friendliness.js to assert the beginner re-queue actually
+    // re-presents missed items before the lesson ends.
+    _test: {
+      beginLesson: function (id) {
+        const u = M.UNITS.find((x) => x.lessons.some((l) => l.id === id));
+        const l = u.lessons.find((x) => x.id === id);
+        if (!l) return false;
+        lesson = l; lessonIdx = 0;
+        lessonResults = { correct: 0, total: 0, wrongItems: [], retry: [] };
+        return true;
+      },
+      current: function () { return lesson.exercises[lessonIdx]; },
+      idx: function () { return lessonIdx; },
+      len: function () { return lesson.exercises.length; },
+      results: function () { return JSON.parse(JSON.stringify(lessonResults)); },
+      grade: function (ok, detail) { gradeExercise(ok, detail || {}); },
+      next: function () { nextExercise(); },
+      done: function () { return !!document.getElementById("screenComplete").hidden === false; }
+    }
+  };
 })();

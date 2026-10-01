@@ -137,18 +137,24 @@
     return shuffle(picked).slice(0, n + 1);
   }
 
-  function lessonFromWords(lessonId, words, unitTitle, xp) {
+  function lessonFromWords(lessonId, words, unitTitle, xp, distractorPool) {
     const exercises = [];
     const w = words;
+    // Distractor pool: the lesson's own words by default, widened to the whole
+    // unit when supplied. Options drawn from only ~10 words make the answer
+    // guessable (pick the odd one out). Hard distractors are still the goal —
+    // makeOptions prefers same-HSK neighbours — so widening the candidate set
+    // raises difficulty without making any single item unfair.
+    const pool = (distractorPool && distractorPool.length > w.length) ? distractorPool : w;
     if (w.length === 1) {
       const only = w[0];
       exercises.push({ type: "teach", zh: only.zh, pinyin: only.pinyin, en: only.en });
       exercises.push({ type: "mc", direction: "zh_to_en", prompt: only.zh, pinyin: only.pinyin,
-        options: makeOptions(only, w, 3).map((x) => x.en), answer: only.en });
+        options: makeOptions(only, pool, 3).map((x) => x.en), answer: only.en });
       exercises.push({ type: "mc", direction: "en_to_zh", prompt: only.en,
-        options: makeOptions(only, w, 3).map((x) => x.zh), answer: only.zh });
+        options: makeOptions(only, pool, 3).map((x) => x.zh), answer: only.zh });
       exercises.push({ type: "listen", prompt: only.zh, pinyin: only.pinyin,
-        options: makeOptions(only, w, 3).map((x) => x.en), answer: only.en });
+        options: makeOptions(only, pool, 3).map((x) => x.en), answer: only.en });
     } else {
       // Teach every word first (teach-before-test), then quiz.
       w.forEach((x) => exercises.push({ type: "teach", zh: x.zh, pinyin: x.pinyin, en: x.en }));
@@ -163,12 +169,12 @@
             direction: zhToEn ? "zh_to_en" : "en_to_zh",
             prompt: zhToEn ? x.zh : x.en,
             pinyin: zhToEn ? x.pinyin : undefined,
-            options: makeOptions(x, w, 3).map((o) => (zhToEn ? o.en : o.zh)),
+            options: makeOptions(x, pool, 3).map((o) => (zhToEn ? o.en : o.zh)),
             answer: zhToEn ? x.en : x.zh });
         });
       });
       exercises.push({ type: "listen", prompt: w[0].zh, pinyin: w[0].pinyin,
-        options: makeOptions(w[0], w, 3).map((x) => x.en), answer: w[0].en });
+        options: makeOptions(w[0], pool, 3).map((x) => x.en), answer: w[0].en });
       exercises.push({ type: "speakBack", promptZh: w[0].zh, promptPinyin: w[0].pinyin, promptEn: w[0].en, maxDurationSec: 4 });
     }
     return { id: lessonId, title: unitTitle, titleZh: w[0] ? w[0].zh : "", xp: xp, exercises: exercises };
@@ -216,7 +222,7 @@
       for (let i = 0; i < pool.length; i += chunk) {
         const slice = pool.slice(i, i + chunk);
         const lid = plan.id + "-l" + (i / chunk + 1);
-        lessons.push(lessonFromWords(lid, slice, slice[0] ? slice[0].zh : plan.titleZh, 25));
+        lessons.push(lessonFromWords(lid, slice, slice[0] ? slice[0].zh : plan.titleZh, 25, pool));
       }
     }
     return Object.assign({}, plan, { lessons: lessons });

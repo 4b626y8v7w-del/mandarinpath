@@ -1,5 +1,5 @@
 /* MandarinPath service worker — precache the whole app so it works offline on iOS. */
-const CACHE = "mandarinpath-v9";
+const CACHE = "mandarinpath-v10";
 const ASSETS = [
   "./",
   "./index.html",

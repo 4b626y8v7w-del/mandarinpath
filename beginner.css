@@ -114,8 +114,12 @@
 #traceCanvas {
   width: 100%;
   max-width: 340px;
-  aspect-ratio: 1 / 1;
+  /* paintGuide() forces a square px box on the element, so height must not be
+   * free to stretch with the flex parent -- that produced a 340x360 grid whose
+   * 田字格 guides and glyph were visibly off-centre. */
   height: auto;
+  aspect-ratio: 1 / 1;
+  align-self: center;
   border-radius: 18px;
   border: 1px solid var(--path-line);
   touch-action: none;      /* finger drawing must not scroll the page */

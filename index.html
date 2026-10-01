@@ -36,6 +36,19 @@
   </div>
 </section>
 
+<!-- ─────────────────────────  ONBOARDING  ───────────────────────── -->
+<section id="screenOnboard" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnSkipOnboard" aria-label="Skip">Skip</button>
+    <div class="onboard-dots" id="onboardDots"></div>
+  </header>
+  <div class="onboard-wrap" id="onboardWrap"></div>
+  <div class="onboard-foot">
+    <button type="button" class="btn btn-ghost" id="btnOnboardBack" aria-label="Back">Back</button>
+    <button type="button" class="btn btn-primary" id="btnOnboardNext">Next</button>
+  </div>
+</section>
+
 <!-- ─────────────────────────  MAIN  ───────────────────────── -->
 <section id="screenMain" class="screen" hidden>
 
@@ -95,6 +108,9 @@
       <button type="button" class="btn btn-ghost" id="btnShowPinyin">🔤 Pinyin hints: on</button>
       <button type="button" class="btn btn-ghost" id="btnTracePractice">✍️ Writing practice: on</button>
       <button type="button" class="btn btn-ghost" id="btnTheme">🎨 Theme: Jade</button>
+      <button type="button" class="btn btn-ghost" id="btnExport">⬇️ Export progress</button>
+      <button type="button" class="btn btn-ghost" id="btnImport">⬆️ Import progress</button>
+      <button type="button" class="btn btn-ghost" id="btnCheckVoice">🔈 Check Mandarin voice</button>
       <button type="button" class="btn btn-danger" id="btnReset">Reset all progress</button>
     </div>
   </div>
@@ -198,9 +214,11 @@
   </div>
 </section>
 
-<div id="toast" class="toast" hidden></div>
-<div id="xpFloat" class="xp-float" hidden>+25 XP</div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="xpFloat" class="xp-float" aria-hidden="true" hidden>+25 XP</div>
 <div id="sparkles" class="sparkles" aria-hidden="true"></div>
+<!-- Screen-reader announcements for quiz feedback and state changes -->
+<div id="srLive" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="vocab-data.js"></script>
 <script src="srs.js"></script>
