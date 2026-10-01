@@ -17,7 +17,7 @@ Add the Mandarin voice first, or audio silently no-ops:
 
 ## What's in it
 
-**9 units, 38 lessons, 606 exercises**
+**10 units, 66 lessons, 1572 exercises, 889 reviewable cards**
 
 | Unit | Content |
 |---|---|
@@ -26,6 +26,11 @@ Add the Mandarin voice first, or audio silently no-ops:
 | 5–7. Directions / Time / Shop & Eat | 60 phrases across 10 situations |
 | 8. Sound It Out | 40 commonly-mispronounced words, with the reason |
 | 9. Put It Together | 80 real sentences across 9 situations |
+| 10. Numbers & Time | 121 numbers, 28 measure words, 46 dates, 28 times |
+
+Plus **316 themed words** (22 themes) each with a worked example sentence,
+**70 grammar notes** embedded in lessons, and **stroke-order data for 120
+characters**.
 
 **Five practice modes:** SM-2 spaced review · Tone Trainer · Flip Match ·
 4-grade flashcards · graded handwriting
@@ -40,6 +45,11 @@ Add the Mandarin voice first, or audio silently no-ops:
 - **Graded handwriting.** Trace a character in a 田字格 grid and the app
   scores your ink against real stroke geometry. 120 characters have stroke
   data (692 strokes); the rest fall back to an honest "ink drawn" pass.
+- **Sentence building.** Tap shuffled word-chunks into the right order. Word
+  order is what English speakers get most wrong, and multiple choice cannot
+  practise it — you have to construct it.
+- **Grammar tips inline.** A short note on particles, word order or measure
+  words appears inside the lesson where it is relevant, with an example.
 - **Retry, then move on.** Missed items come back within the lesson, capped
   at two rounds so nobody gets trapped in a lesson they can't pass.
 - **Nothing is timed.** No hearts pressure, no speed bonus.
@@ -58,7 +68,12 @@ Add the Mandarin voice first, or audio silently no-ops:
 - **iOS evicts web-app data after ~7 days of disuse.** Use the app, and export
   your progress periodically (Settings → Export progress).
 - **Sentences are checked for pinyin/character correspondence, not for
-  naturalness by a native speaker.**
+  naturalness by a native speaker.** The validator catches dropped syllables
+  and mislabelled fields; it cannot catch an example that is grammatical but
+  subtly unnatural.
+- **Numbers and measure words are reference material, not a counting drill.**
+  The app teaches the forms and their examples; it does not generate arbitrary
+  arithmetic, so "how many" in a live shop is still on you.
 
 ## Design notes
 
@@ -84,7 +99,9 @@ node test-srs.js          # spaced-repetition scheduler
 node test-trace.js        # handwriting grader discrimination
 node test-orientation.js  # stroke data is upright, not mirrored
 node validate-data.js     # data bundles: format, pinyin, grid bounds
+node validate-content.js  # grammar / numbers / themed vocabulary
 node check-curriculum.js  # every quiz has its answer, no duplicates
+node test-chunker.js      # sentence-builder puzzles are solvable
 ```
 
 `probe.js` and `audit-layout.js` are injected into the running page by the
@@ -97,6 +114,7 @@ browser harness to drive the app and audit layout at real device sizes.
 `sentences-data.js` (30 patterns / 80 sentences) ·
 `strokes-data.js` (120 characters) · `trace-grade.js` (handwriting scorer) ·
 `srs.js` (scheduler) · `sw.js` (offline) ·
+`grammar-data.js` (70 notes) · `numbers-data.js` · `vocab2-data.js` (316 themed) ·
 `styles.css` (from the demo) · `shell.css` (app shell) · `beginner.css`
 
 All content is bundled — no network calls, no accounts, no third-party code.

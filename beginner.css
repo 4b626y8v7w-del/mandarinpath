@@ -306,6 +306,279 @@
   border-radius: 6px;
 }
 
+/* ── Sentence builder ────────────────────────────────────────────────
+   The answer rail sits above a shuffled bank. Tapping a bank tile moves it
+   up; tapping it in the rail sends it back. Both are single taps because a
+   beginner should never have to aim at a small target mid-sentence. */
+.build-prompt {
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--path-line);
+}
+
+.build-en {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.build-py {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.build-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+  min-height: 74px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 2px dashed var(--path-line);
+}
+
+.build-hint {
+  margin: auto;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.build-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.build-tile {
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--card-elev);
+  border: 1px solid var(--path-line);
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.build-tile:disabled {
+  opacity: 0.25;
+}
+
+.build-tile.placed {
+  background: var(--primary);
+  border-color: transparent;
+  color: #fff;
+}
+
+.build-tile.placed.bad {
+  background: var(--heart, #f24d59);
+}
+
+.build-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+}
+
+/* ── Grammar card ──────────────────────────────────────────────────── */
+.grammar-card {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--path-line);
+  border-left: 4px solid var(--accent, #80182E);
+}
+
+.g-title {
+  font-size: 1.08rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.g-body {
+  margin: 0 0 12px;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.g-example {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--card-elev);
+  border: 1px solid var(--path-line);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+
+.g-zh {
+  font-size: 1.22rem;
+}
+
+.g-py {
+  font-size: 0.84rem;
+  color: var(--primary);
+}
+
+.g-en {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.g-hear {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+}
+
+.g-warn {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--heart, #f24d59);
+}
+
+.trace-prompt .teach-zh {
+  font-size: 2rem;
+}
+
+.num-card .num-zh {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* ── Daily goal ring & achievements ───────────────────────────────── */
+.goal-ring {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+}
+
+.goal-ring .goal-num {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--path-line);
+}
+
+.goal-info {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.goal-info strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.goal-met {
+  margin-left: 8px;
+  color: #FBBF24;
+  font-weight: 700;
+}
+
+.goal-hint {
+  margin-left: 8px;
+}
+
+.goal-opts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.goal-opt {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--path-line);
+  background: var(--card-elev);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.goal-opt.on {
+  background: var(--primary);
+  border-color: transparent;
+  color: #fff;
+}
+
+.ach-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ach-summary {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+
+.ach {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--path-line);
+  opacity: 0.42;
+  text-align: center;
+}
+
+.ach.earned {
+  opacity: 1;
+  background: var(--card-elev);
+  border-color: var(--primary);
+}
+
+.ach-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.ach-name {
+  font-size: 0.62rem;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
 /* ── Settings rows ─────────────────────────────────────────────────── */
 #errorBar {
   position: fixed;

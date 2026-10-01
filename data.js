@@ -14,6 +14,9 @@
   const PHRASES = window.MP_PHRASES || {};
   const TRICKY = window.MP_TRICKY || [];
   const SENT = window.MP_SENTENCES || { patterns: [], sentences: [] };
+  const GRAMMAR = (window.MP_GRAMMAR || {}).notes || [];
+  const NUMBERS = window.MP_NUMBERS || { numbers: [], measures: [], dates: [], times: [] };
+  const WORDS2 = window.MP_WORDS2 || [];
 
   /* ── Tones ────────────────────────────────────────────────────────────
    * Each entry is a minimal set: same syllable, different tone.
@@ -73,6 +76,121 @@
     { tone: 0, mark: "", name: "neutral", zh: "轻声", pitch: "—", how: "quick and light; particles like 的 de, 了 le, 吗 ma" }
   ];
 
+  /* ── Sentence building ───────────────────────────────────────────────
+   * The signature word-order exercise: chop a sentence into chunks, shuffle
+   * them, and have the learner put it back together. Word order is the thing
+   * English speakers get most wrong in Chinese, and multiple choice cannot
+   * practise it -- you either recognise the right order or you do not, but
+   * neither option forces you to build it.
+   *
+   * Chunks are real word groups, not single characters, so the answer is
+   * grammatically plausible either way and only position distinguishes them.
+   * Punctuation rides along with its chunk so the result reads naturally. */
+  const CJK = /[\u4e00-\u9fff]/;
+
+  /* Split into chunks on natural boundaries: measure words and particles
+   * stay attached to what follows, which is how Mandarin actually parses. */
+  function chunkSentence(zh) {
+    const chars = Array.from(String(zh || ""));
+    if (!chars.length) return [];
+    const chunks = [];
+    let buf = "";
+
+    for (let i = 0; i < chars.length; i++) {
+      const c = chars[i];
+      buf += c;
+      // Break after a noun-ish or adverb-ish char when something follows.
+      const atBreak = /[的了着吗呢吧是在不很太们]/.test(c) ||
+        /[一二三四五六七八九十百千万]/.test(c) ||
+        (CJK.test(c) && i === chars.length - 1);
+      if (atBreak && buf) { chunks.push(buf); buf = ""; }
+    }
+    if (buf) chunks.push(buf);
+
+    // A sentence of all one chunk cannot be shuffled into a puzzle.
+    if (chunks.length < 2) {
+      const mid = Math.max(1, Math.floor(chars.length / 2));
+      return [chars.slice(0, mid).join(""), chars.slice(mid).join("")];
+    }
+    return chunks;
+  }
+
+  /* Drop trailing punctuation into the previous chunk so it does not become
+   * its own confusing tile. */
+  function chunkSentenceClean(zh) {
+    const raw = chunkSentence(zh);
+    const out = [];
+    raw.forEach((c) => {
+      const m = c.match(/^([^，。？！、,.?!]*)([，。？！、,.?!]*)$/);
+      const body = m ? m[1] : c;
+      const punct = m ? m[2] : "";
+      // Punctuation attaches to the END of its own chunk. Dropping it
+      // (as an earlier version did) made a question sentence read as a
+      // statement, and it made every build answer differ from the source
+      // sentence by one character.
+      if (body) {
+        out.push(body + punct);
+      } else if (punct && out.length) {
+        out[out.length - 1] += punct;
+      } else if (punct) {
+        out.push(punct);
+      }
+    });
+    return out.filter((c) => c.length);
+  }
+
+  /* Repeated chunks make the puzzle ambiguous: 谢谢 splits to [谢][谢] and
+   * any arrangement looks right. Merge duplicates back together so every tile
+   * is distinguishable. */
+  function dedupeChunks(chunks) {
+    const seen = new Set();
+    const out = [];
+    chunks.forEach((c) => {
+      if (seen.has(c)) {
+        // Absorb the repeat into the previous chunk.
+        if (out.length) { out[out.length - 1] += c; return; }
+      }
+      seen.add(c);
+      out.push(c);
+    });
+    return out;
+  }
+
+  function sentenceBuildExercise(sentence) {
+    let chunks = dedupeChunks(chunkSentenceClean(sentence.zh));
+
+    // Too few chunks to be a puzzle, or every chunk a single character, means
+    // the sentence is too short to scramble meaningfully. Return null and let
+    // the caller fall back to another exercise type.
+    if (chunks.length < 2) return null;
+    if (chunks.every((c) => Array.from(c).length === 1)) return null;
+    // A puzzle whose tiles are all one character is trivial: the learner can
+    // just read the answer off the shuffled bank.
+    if (chunks.some((c) => Array.from(c).length === 1) && chunks.length < 3) return null;
+
+    return {
+      type: "build",
+      zh: sentence.zh,
+      pinyin: sentence.pinyin,
+      en: sentence.en,
+      chunks: chunks,
+      answer: chunks.join(""),
+      distractors: buildDistractorChunks(chunks, sentence.en)
+    };
+  }
+
+  /* Two plausible wrong orders built from the same chunks: the sentence
+   * reversed, and the first two chunks swapped. Both are real misorderings a
+   * learner actually produces, not random noise. */
+  function buildDistractorChunks(chunks, enLabel) {
+    void enLabel;
+    const a = chunks.slice().reverse();
+    const b = chunks.slice();
+    if (b.length > 2) { const t = b[0]; b[0] = b[1]; b[1] = t; }
+    const seen = new Set([chunks.join("")]);
+    return [a, b].map((x) => x.join("")).filter((x) => !seen.has(x));
+  }
+
   /* ── Curriculum ────────────────────────────────────────────────────────
    * Eight units. Unit 1 is a pronunciation-only tone unit (no characters yet)
    * because tones gate everything after it. Units 2-8 draw from the
@@ -96,7 +214,9 @@
     { id: "u8", title: "Sound It Out", titleZh: "发音难点", titlePinyin: "fāyīn nándiǎn", color: "#9E6BF2", icon: "🎧", kind: "tricky",
       blurb: "The 40 words beginners reliably get wrong — and why." },
     { id: "u9", title: "Put It Together", titleZh: "组句", titlePinyin: "zǔ jù", color: "#26B8B3", icon: "💬", kind: "sentences",
-      blurb: "Real sentences. Isolated words are easier than the real thing." }
+      blurb: "Real sentences. Isolated words are easier than the real thing." },
+    { id: "u10", title: "Numbers & Time", titleZh: "数字和时间", titlePinyin: "shùzì hé shíjiān", color: "#FF8C33", icon: "🔢", kind: "numbers",
+      blurb: "Count, ask the price, tell the time. Measure words too." }
   ];
 
   const LESSONS_PER_UNIT = 4;
@@ -140,7 +260,26 @@
     return shuffle(picked).slice(0, n + 1);
   }
 
-  function lessonFromWords(lessonId, words, unitTitle, xp, distractorPool) {
+  /* One grammar tip per unit, chosen deterministically so the same unit always
+   teaches the same note. Notes are addressed by unit id in the data bundle. */
+  const grammarByUnit = {};
+  GRAMMAR.forEach((n) => {
+    if (n && n.unit && !grammarByUnit[n.unit]) grammarByUnit[n.unit] = n;
+  });
+
+  let grammarCursor = 0;
+  function grammarForUnit(unitId) {
+    if (!unitId) return null;
+    const direct = grammarByUnit[unitId];
+    if (direct) return direct;
+    // Fall back to cycling through all notes so no unit is left without one
+    // once the bundles are loaded.
+    const pool = GRAMMAR.filter((n) => n && n.zh);
+    if (!pool.length) return null;
+    return pool[(grammarCursor++) % pool.length];
+  }
+
+  function lessonFromWords(lessonId, words, unitTitle, xp, distractorPool, unitId) {
     const exercises = [];
     const w = words;
     // Distractor pool: the lesson's own words by default, widened to the whole
@@ -176,9 +315,39 @@
             answer: zhToEn ? x.en : x.zh });
         });
       });
-      exercises.push({ type: "listen", prompt: w[0].zh, pinyin: w[0].pinyin,
-        options: makeOptions(w[0], pool, 3).map((x) => x.en), answer: w[0].en });
-      exercises.push({ type: "speakBack", promptZh: w[0].zh, promptPinyin: w[0].pinyin, promptEn: w[0].en, maxDurationSec: 4 });
+      // Listening comprehension for EVERY word, not just the first. Hearing a
+      // word and recognising it is a different skill from reading it, and a
+      // beginner who can read a character they cannot hear is exactly who
+      // this exercises.
+      w.forEach((x) => {
+        exercises.push({ type: "listen", prompt: x.zh, pinyin: x.pinyin,
+          options: makeOptions(x, pool, 3).map((o) => o.en), answer: x.en });
+      });
+
+      // Mixed round with 6 options: harder distractors drawn from the whole
+      // unit, so the answer cannot be found by elimination within the batch.
+      w.forEach((x) => {
+        exercises.push({ type: "mc", direction: "zh_to_en", prompt: x.zh, pinyin: x.pinyin,
+          options: makeOptions(x, pool, 5).map((o) => o.en), answer: x.en });
+      });
+
+      // Production: say it back, self-checked, on two words not always the first.
+      w.slice(0, 2).forEach((x) => {
+        exercises.push({ type: "speakBack", promptZh: x.zh, promptPinyin: x.pinyin,
+          promptEn: x.en, maxDurationSec: 4 });
+      });
+
+      // Writing: trace the single-character words just taught. The renderer
+      // checks stroke data exists, so multi-character words are skipped here.
+      w.forEach((x) => {
+        if (Array.from(x.zh).length === 1) {
+          exercises.push({ type: "trace", zh: x.zh, pinyin: x.pinyin, en: x.en });
+        }
+      });
+
+      // Grammar tip, once per lesson, if one is mapped to this unit.
+      const note = grammarForUnit(unitId);
+      if (note) exercises.push({ type: "grammar", note: note });
     }
     return { id: lessonId, title: unitTitle, titleZh: w[0] ? w[0].zh : "", xp: xp, exercises: exercises };
   }
@@ -240,12 +409,25 @@
           const ex = slice.map(function (s) {
             return { type: "sentence", zh: s.zh, pinyin: s.pinyin, en: s.en, group: gk };
           });
+          // Build exercise: force the learner to construct the word order.
+          slice.forEach(function (s) {
+            const b = sentenceBuildExercise(s);
+            if (b) ex.push(b);
+          });
           slice.forEach(function (s) {
             const others = shuffle((SENT.sentences || [])
               .filter(function (x) { return x.en !== s.en; }))
               .slice(0, 3).map(function (x) { return x.en; });
             ex.push({ type: "mc", direction: "zh_to_en", prompt: s.zh, pinyin: s.pinyin,
               options: shuffle(others.concat([s.en])), answer: s.en });
+          });
+          // Listening recall: hear it, then recognise it.
+          slice.forEach(function (s) {
+            const others = shuffle((SENT.sentences || [])
+              .filter(function (x) { return x.zh !== s.zh; }))
+              .slice(0, 3).map(function (x) { return x.zh; });
+            ex.push({ type: "listen", prompt: s.zh, pinyin: s.pinyin,
+              options: shuffle(others.concat([s.zh])), answer: s.zh });
           });
           lessons.push({
             id: plan.id + "-l" + (++n),
@@ -256,13 +438,58 @@
           });
         }
       });
+    } else if (plan.kind === "numbers") {
+      // Numbers first (they are the highest-utility items in the language),
+      // then measure words, then the date/time expressions.
+      const chunkOf = (list, per) => {
+        const out = [];
+        for (let i = 0; i < list.length; i += per) out.push(list.slice(i, i + per));
+        return out;
+      };
+      const groups = [
+        { key: "numbers", list: NUMBERS.numbers || [], per: 10, kind: "num" },
+        { key: "measures", list: NUMBERS.measures || [], per: 6, kind: "measure" },
+        { key: "dates", list: NUMBERS.dates || [], per: 8, kind: "num" },
+        { key: "times", list: NUMBERS.times || [], per: 7, kind: "num" }
+      ];
+      let n = 0;
+      groups.forEach(function (g) {
+        chunkOf(g.list, g.per).forEach(function (slice) {
+          const ex = slice.map(function (x) {
+            return {
+              type: g.kind === "measure" ? "measure" : "num",
+              zh: x.zh, pinyin: x.pinyin, en: x.en,
+              exampleZh: x.example_zh, exampleEn: x.example_en, note: x.note
+            };
+          });
+          // Test recall against the whole numbers pool so distractors are
+          // numerals, not random words.
+          slice.forEach(function (x) {
+            const others = shuffle(g.list.filter(function (y) { return y.zh !== x.zh; }))
+              .slice(0, 3).map(function (y) { return y.zh; });
+            ex.push({ type: "mc", direction: "zh_to_en", prompt: x.zh, pinyin: x.pinyin,
+              options: shuffle(others.concat([x.zh])), answer: x.zh, numeric: true });
+          });
+          lessons.push({
+            id: plan.id + "-l" + (++n),
+            title: slice[0].en,
+            titleZh: slice[0].zh,
+            xp: 30,
+            exercises: ex
+          });
+        });
+      });
+      const note = grammarForUnit(plan.id);
+      if (note && lessons.length) {
+        lessons[lessons.length - 1].exercises.push({ type: "grammar", note: note });
+      }
     } else {
       const pool = pickWords(plan.from, plan.to);
       const chunk = Math.max(1, Math.ceil(pool.length / LESSONS_PER_UNIT));
       for (let i = 0; i < pool.length; i += chunk) {
         const slice = pool.slice(i, i + chunk);
         const lid = plan.id + "-l" + (i / chunk + 1);
-        lessons.push(lessonFromWords(lid, slice, slice[0] ? slice[0].zh : plan.titleZh, 25, pool));
+        lessons.push(lessonFromWords(lid, slice, slice[0] ? slice[0].zh : plan.titleZh, 25, pool, plan.id));
       }
     }
     return Object.assign({}, plan, { lessons: lessons });
@@ -272,9 +499,18 @@
   const DECKS = [
     { id: "hsk1", label: "HSK 1 · first 100", words: WORDS.slice(0, 100) },
     { id: "hsk2", label: "HSK 2 · 101-250", words: WORDS.slice(100, 250) },
+    { id: "themed", label: "Everyday themes · " + WORDS2.length, words: WORDS2.map((w) => ({
+      zh: w.zh, pinyin: w.pinyin, en: w.en, hsk: w.hsk,
+      exampleZh: w.ex_zh, exampleEn: w.ex_en, theme: w.theme
+    })) },
     { id: "tricky", label: "Tricky sounds", words: TRICKY.map((t) => ({ zh: t.zh, pinyin: t.pinyin, en: t.note, hsk: "—" })) },
     { id: "phrases", label: "Everyday phrases", words: Object.keys(PHRASES).flatMap((g) =>
-      PHRASES[g].map((p) => ({ zh: p[0], pinyin: p[1], en: p[2], hsk: g }))) }
+      PHRASES[g].map((p) => ({ zh: p[0], pinyin: p[1], en: p[2], hsk: g }))) },
+    { id: "numbers", label: "Numbers, measures, time", words: []
+        .concat((NUMBERS.numbers || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "number" })))
+        .concat((NUMBERS.measures || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "measure" })))
+        .concat((NUMBERS.dates || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "date" })))
+        .concat((NUMBERS.times || []).map((x) => ({ zh: x.zh, pinyin: x.pinyin, en: x.en, hsk: "time" }))) }
   ];
 
   const ALL_CARDS = DECKS.flatMap((d) => d.words.map((w) => ({ deck: d.id, zh: w.zh, pinyin: w.pinyin, en: w.en })));

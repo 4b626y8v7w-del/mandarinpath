@@ -9,7 +9,7 @@ const vm = require("vm");
 
 const sb = { window: {}, console, Math, Set, JSON };
 vm.createContext(sb);
-["vocab-data.js", "sentences-data.js", "data.js"].forEach((f) =>
+["vocab-data.js", "sentences-data.js", "strokes-data.js", "grammar-data.js", "numbers-data.js", "vocab2-data.js", "data.js"].forEach((f) =>
   vm.runInContext(fs.readFileSync(__dirname + "/" + f, "utf8"), sb)
 );
 const M = sb.window.MP;
@@ -18,7 +18,8 @@ let fails = 0;
 function fail(m) { fails++; console.log("FAIL  " + m); }
 
 const KNOWN_TYPES = new Set([
-  "teach", "mc", "listen", "tiles", "speakBack", "toneSet", "tricky", "phrase", "sentence"
+  "teach", "mc", "listen", "tiles", "speakBack", "toneSet", "tricky", "phrase", "sentence",
+  "build", "trace", "grammar", "num", "measure"
 ]);
 
 console.log("units: " + M.UNITS.length);

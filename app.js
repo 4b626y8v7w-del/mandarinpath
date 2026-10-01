@@ -33,10 +33,18 @@
         showEnglish: true, // reveal the English meaning before answering
         showPinyin: true,  // show pinyin on English->Chinese prompts
         theme: "jade",
-        tracePractice: true
+        tracePractice: true,
+        dailyGoal: 20
       },
       session: { lessonId: null, index: 0 },
-      onboarded: false
+      onboarded: false,
+      xpToday: 0,
+      xpDay: null,
+      goalMetEver: false,
+      achievements: {},
+      toneScores: [],
+      traceAttempts: 0,
+      builtSentences: 0
     };
   }
 
@@ -621,6 +629,151 @@
       return;
     }
 
+    if (ex.type === "num" || ex.type === "measure") {
+      // Numbers and measure words. A measure word only makes sense beside the
+      // noun it counts, so its example is the point of the card.
+      const isMeasure = ex.type === "measure";
+      body.innerHTML =
+        '<div class="dir-label">' + (isMeasure ? "Measure word · 量词" : "Number · 数字") + "</div>" +
+        '<div class="teach-card num-card">' +
+          '<div class="num-zh">' + esc(ex.zh) + "</div>" +
+          '<div class="teach-py">' + esc(ex.pinyin) + "</div>" +
+          '<div class="teach-en">' + esc(ex.en) + "</div>" +
+          (ex.exampleZh
+            ? '<button type="button" class="g-example" data-say="' + esc(ex.exampleZh) + '">' +
+                '<span class="g-zh">' + esc(ex.exampleZh) + "</span>" +
+                (ex.exampleEn ? '<span class="g-en">' + esc(ex.exampleEn) + "</span>" : "") +
+                '<span class="g-hear">🔊</span>' +
+              "</button>"
+            : "") +
+          (ex.note ? '<p class="g-warn">💡 ' + esc(ex.note) + "</p>" : "") +
+          audioControls(ex.zh) +
+        "</div>" +
+        '<button type="button" class="btn btn-primary btn-xl" id="btnTeachNext">Got it — continue</button>';
+      $("#btnTeachNext").addEventListener("click", nextExercise);
+      return;
+    }
+
+    if (ex.type === "grammar") {
+      // A short explainer card. Tappable to hear the example, then continue.
+      const n = ex.note;
+      body.innerHTML =
+        '<div class="dir-label">Grammar tip · 语法</div>' +
+        '<div class="grammar-card">' +
+          '<div class="g-title">' + esc(n.title) + "</div>" +
+          '<p class="g-body">' + esc(n.body) + "</p>" +
+          '<button type="button" class="g-example" data-say="' + esc(n.zh) + '">' +
+            '<span class="g-zh">' + esc(n.zh) + "</span>" +
+            '<span class="g-py">' + esc(n.pinyin) + "</span>" +
+            '<span class="g-en">' + esc(n.en) + "</span>" +
+            '<span class="g-hear">🔊</span>' +
+          "</button>" +
+          (n.warn ? '<p class="g-warn">⚠️ ' + esc(n.warn) + "</p>" : "") +
+        "</div>" +
+        '<button type="button" class="btn btn-primary btn-xl" id="btnTeachNext">Got it</button>';
+      $("#btnTeachNext").addEventListener("click", nextExercise);
+      return;
+    }
+
+    if (ex.type === "trace") {
+      // Inline writing: one tap opens the full trace screen, then returns here.
+      const has = !!(window.MP_STROKES || {})[String(ex.zh).slice(0, 1)];
+      body.innerHTML =
+        '<div class="dir-label">Write it · 写字</div>' +
+        '<div class="teach-card trace-prompt">' +
+          '<div class="teach-zh">' + esc(ex.zh) + "</div>" +
+          '<div class="teach-py">' + esc(ex.pinyin) + "</div>" +
+          '<div class="teach-en">' + esc(ex.en) + "</div>" +
+          audioControls(ex.zh) +
+        "</div>" +
+        (has
+          ? '<button type="button" class="btn btn-primary btn-xl" id="btnInlineTrace">✍️ Trace this character</button>'
+          : '<p class="teach-hint">Stroke guide not available for this character — practise it in Write mode.</p>') +
+        '<button type="button" class="btn btn-ghost" id="btnTeachNext">Continue</button>';
+      $("#btnTeachNext").addEventListener("click", nextExercise);
+      const it = $("#btnInlineTrace");
+      if (it) {
+        it.addEventListener("click", function () {
+          pendingExerciseReturn = true;
+          openTrace(ex.zh, ex.pinyin);
+        });
+      }
+      return;
+    }
+
+    if (ex.type === "build") {
+      // Sentence builder: tap chunks into the answer rail until it reads right.
+      const order = M.shuffle(ex.chunks.map((c, i) => ({ text: c, id: i })));
+      const placed = [];
+      body.innerHTML =
+        '<div class="dir-label">Put it in order · 组句</div>' +
+        '<div class="build-prompt">' +
+          '<div class="build-en">' + esc(ex.en) + "</div>" +
+          '<div class="build-py">' + esc(ex.pinyin) + "</div>" +
+          audioControls(ex.zh) +
+        "</div>" +
+        '<div class="build-answer" id="buildAnswer">' +
+          '<span class="build-hint">Tap the pieces below</span></div>' +
+        '<div class="build-bank" id="buildBank">' +
+          order.map((o, i) => '<button type="button" class="build-tile" data-i="' + i + '">' + esc(o.text) + "</button>").join("") +
+        "</div>" +
+        '<div class="build-actions">' +
+          '<button type="button" class="btn btn-ghost" id="buildUndo">↩ Undo</button>' +
+          '<button type="button" class="btn btn-primary" id="buildCheck" disabled>Check</button>' +
+        "</div>";
+
+      const answerEl = $("#buildAnswer");
+      const checkBtn = $("#buildCheck");
+      function renderRail() {
+        answerEl.innerHTML = placed.length
+          ? placed.map((p) => '<button type="button" class="build-tile placed" data-placed="' + p.id + '">' + esc(p.text) + "</button>").join("")
+          : '<span class="build-hint">Tap the pieces below</span>';
+        checkBtn.disabled = placed.length !== order.length;
+      }
+      $$(".build-tile", $("#buildBank")).forEach((b) => {
+        b.addEventListener("click", function () {
+          if (locked || b.disabled) return;
+          const o = order[+b.dataset.i];
+          b.disabled = true;
+          placed.push(o);
+          renderRail();
+        });
+      });
+      answerEl.addEventListener("click", function (e) {
+        const b = e.target.closest(".build-tile.placed");
+        if (!b || locked) return;
+        const id = +b.dataset.placed;
+        const idx = placed.findIndex((p) => p.id === id);
+        if (idx < 0) return;
+        placed.splice(idx, 1);
+        $$(".build-tile", $("#buildBank"))[id].disabled = false;
+        renderRail();
+      });
+      $("#buildUndo").addEventListener("click", function () {
+        if (!placed.length) return;
+        const last = placed.pop();
+        $$(".build-tile", $("#buildBank"))[last.id].disabled = false;
+        renderRail();
+      });
+      checkBtn.addEventListener("click", function () {
+        if (locked) return;
+        locked = true;
+        const built = placed.map((p) => p.text).join("");
+        const ok = built === ex.answer;
+        if (ok) { S.builtSentences = (S.builtSentences || 0) + 1; }
+        gradeExercise(ok, {
+          chosen: built, correct: ex.answer, pinyin: ex.pinyin, en: ex.en, zh: ex.zh
+        });
+        // Reveal the correct order so a wrong build is repairable.
+        if (!ok) {
+          answerEl.innerHTML = ex.chunks.map((c) =>
+            '<span class="build-tile placed' + (c === built ? " bad" : "") + '">' + esc(c) + "</span>").join("");
+        }
+      });
+      renderRail();
+      return;
+    }
+
     if (ex.type === "mc" || ex.type === "listen") {
       const isListen = ex.type === "listen";
       const zhToEn = ex.direction === "zh_to_en" || isListen;
@@ -918,10 +1071,11 @@
   function finishLesson() {
     touchStreak();
     const xp = lesson.xp || 25;
-    S.xp += xp;
+    addXP(xp);
     S.completed[lesson.id] = Date.now();
     S.session = { lessonId: null, index: 0 };
     save();
+    checkAchievements();
 
     const pct = Math.round((lessonResults.correct / Math.max(1, lessonResults.total)) * 100);
     $("#completeXP").textContent = "+" + xp + " XP";
@@ -940,6 +1094,99 @@
     showScreen("screenMain");
     setTab("practice");
     toast("XP claimed — " + dueCount() + " cards due");
+  }
+
+  /* ── XP ──────────────────────────────────────────────────────────────
+   * Every point of XP goes through here. Awarding XP in half a dozen places
+   * separately is how "today's XP" drifts out of sync with the total and the
+   * daily goal silently breaks. */
+  function addXP(n) {
+    n = Number(n) || 0;
+    if (!n) return;
+    S.xp = (S.xp || 0) + n;
+    // A new calendar day resets the daily counter, without touching the streak
+    // (the streak has its own logic in touchStreak).
+    const today = dayKey();
+    if (S.xpDay !== today) { S.xpDay = today; S.xpToday = 0; }
+    S.xpToday = (S.xpToday || 0) + n;
+    const g = goalProgress();
+    if (g.met && !S.goalMetEver) { S.goalMetEver = true; }
+    updateStats();
+  }
+
+  /* ── Daily goal & achievements ───────────────────────────────────────
+   * Lingodeer-style meta layer. Both are pure functions of state so they can
+   * be recomputed on every render and never drift from the truth.
+   *
+   * The daily goal is a soft target: missing it never breaks a streak and
+   * never resets anything. A learner who opens the app after a bad day is
+   * exactly the one who should find it easy to come back. */
+
+  const GOAL_OPTIONS = [10, 20, 40, 60, 100];
+
+  function xpToday() {
+    // XP is a running total, so today's contribution is tracked explicitly at
+    // the moment it is awarded rather than inferred from a difference.
+    return S.xpToday || 0;
+  }
+
+  function goalProgress() {
+    const goal = S.settings.dailyGoal || 20;
+    const done = xpToday();
+    return {
+      goal: goal,
+      done: done,
+      pct: Math.max(0, Math.min(1, goal ? done / goal : 0)),
+      met: done >= goal
+    };
+  }
+
+  const ACHIEVEMENTS = [
+    { id: "first-lesson", name: "First steps", icon: "🌱", desc: "Clear your first lesson", test: (s) => Object.keys(s.completed).length >= 1 },
+    { id: "five-lessons", name: "Getting going", icon: "🌿", desc: "Clear 5 lessons", test: (s) => Object.keys(s.completed).length >= 5 },
+    { id: "all-lessons", name: "Path complete", icon: "🏔", desc: "Clear every lesson in the path", test: (s) => Object.keys(s.completed).length >= ALL_LESSONS.length },
+    { id: "streak-3", name: "Three in a row", icon: "🔥", desc: "Reach a 3-day streak", test: (s) => (s.streak || 0) >= 3 },
+    { id: "streak-7", name: "Week strong", icon: "⚡", desc: "Reach a 7-day streak", test: (s) => (s.streak || 0) >= 7 },
+    { id: "streak-30", name: "Month of habit", icon: "💎", desc: "Reach a 30-day streak", test: (s) => (s.streak || 0) >= 30 },
+    { id: "xp-500", name: "500 XP", icon: "⭐", desc: "Earn 500 XP", test: (s) => (s.xp || 0) >= 500 },
+    { id: "xp-2000", name: "2000 XP", icon: "🌟", desc: "Earn 2000 XP", test: (s) => (s.xp || 0) >= 2000 },
+    { id: "words-50", name: "Word collector", icon: "📚", desc: "Meet 50 different words", test: (s) => Object.keys(s.introduced).length >= 50 },
+    { id: "words-150", name: "Word hoarder", icon: "🗂", desc: "Meet 150 different words", test: (s) => Object.keys(s.introduced).length >= 150 },
+    { id: "mature-25", name: "Stuck in memory", icon: "🧠", desc: "Get 25 cards past 3 weeks", test: (s) => Object.keys(s.cards).filter((k) => (s.cards[k].interval || 0) >= 21).length >= 25 },
+    { id: "tones-50", name: "Tone deaf no more", icon: "🎵", desc: "Score 50%+ on Tone Trainer twice", test: (s) => (s.toneScores || []).filter((v) => v >= 0.5).length >= 2 },
+    { id: "writer-10", name: "Pen to paper", icon: "✍️", desc: "Write 10 characters", test: (s) => (s.traceAttempts || 0) >= 10 },
+    { id: "goal-met", name: "Daily learner", icon: "🎯", desc: "Hit your daily goal once", test: (s) => !!s.goalMetEver },
+    { id: "builder", name: "Word order", icon: "🧩", desc: "Build 25 sentences", test: (s) => (s.builtSentences || 0) >= 25 }
+  ];
+
+  function achievementState() {
+    const earned = S.achievements || {};
+    return ACHIEVEMENTS.map((a) => ({
+      id: a.id, name: a.name, icon: a.icon, desc: a.desc,
+      earned: !!earned[a.id],
+      // Progress toward the nearest milestone, so locked ones still show motion.
+      progress: a.test(S) ? 1 : undefined
+    }));
+  }
+
+  /* Check every achievement and toast only newly earned ones. */
+  function checkAchievements() {
+    const earned = S.achievements || (S.achievements = {});
+    const fresh = [];
+    ACHIEVEMENTS.forEach((a) => {
+      if (earned[a.id]) return;
+      let ok = false;
+      try { ok = a.test(S); } catch (e) { ok = false; }
+      if (ok) { earned[a.id] = Date.now(); fresh.push(a); }
+    });
+    if (fresh.length) {
+      save();
+      const a = fresh[0];
+      toast(a.icon + " Achievement: " + a.name + (fresh.length > 1 ? " (+" + (fresh.length - 1) + " more)" : ""));
+      announce("Achievement unlocked: " + a.name);
+      sfx.reward();
+    }
+    return fresh;
   }
 
   /* ── Error resilience ────────────────────────────────────────────────
@@ -1105,6 +1352,9 @@
   let traceResult = null;
   let traceAttempts = 0;
   let tracePasses = 0;
+  /* Set when the trace screen is opened from inside a lesson, so Done returns
+   * to the lesson rather than jumping to the path map. */
+  let pendingExerciseReturn = false;
   // Module-level so paintGuide() can reach the current glyph: it is only ever
   // a local inside openTrace(), which left the guide glyph unreferenced.
   let traceGlyph = "";
@@ -1273,9 +1523,9 @@
       const res = checkTrace(true);
       const ok = !res || res.verdict === "great" || res.verdict === "good";
       sfx[ok ? "reward" : "correct"]();
-      S.xp += ok ? 3 : 1;
-      traceAttempts = (traceAttempts || 0) + 1;
-      if (ok) tracePasses = (tracePasses || 0) + 1;
+      addXP(ok ? 3 : 1);
+      S.traceAttempts = (S.traceAttempts || 0) + 1;
+      checkAchievements();
       touchStreak();
       save();
       updateStats();
@@ -1290,12 +1540,21 @@
       if (writeQueue.length) {
         toast("Write session done · " + writeQueue.length + " characters");
         writeQueue = [];
-      } else {
-        toast(ok ? "Nice writing · +3 XP" : "Keep practising · +1 XP");
+        setTimeout(function () { toMain("practice"); }, 700);
+        return;
       }
-      setTimeout(function () { toMain(writeQueue.length ? "practice" : "learn"); }, 700);
+      if (pendingExerciseReturn) {
+        pendingExerciseReturn = false;
+        setTimeout(function () { showScreen("screenLesson"); renderExercise(); }, 700);
+        return;
+      }
+      toast(ok ? "Nice writing · +3 XP" : "Keep practising · +1 XP");
+      setTimeout(function () { toMain("learn"); }, 700);
     });
-    $("#btnCloseTrace").addEventListener("click", () => toMain("learn"));
+    $("#btnCloseTrace").addEventListener("click", function () {
+      if (pendingExerciseReturn) { pendingExerciseReturn = false; showScreen("screenLesson"); renderExercise(); return; }
+      toMain("learn");
+    });
     window.addEventListener("resize", () => {
       if (!$("#screenTrace").hidden) paintGuide();
     });
@@ -1431,7 +1690,7 @@
     reviewIdx++;
     if (reviewIdx >= reviewCards.length) {
       const bonus = 15;
-      S.xp += bonus;
+      addXP(bonus);
       touchStreak();
       save();
       sfx.reward();
@@ -1538,8 +1797,15 @@
   }
 
   function renderToneRound() {
-    if (toneIdx >= toneRound.length) {
-      $("#toneStage").innerHTML =
+      if (toneIdx >= toneRound.length) {
+        // Record the score for the Tone Trainer achievement. Bounded history so
+        // the save file cannot grow without limit.
+        const ratio = toneRound.length ? toneCorrect / toneRound.length : 0;
+        S.toneScores = (S.toneScores || []).concat([ratio]).slice(-20);
+        addXP(toneCorrect * 2);
+        save();
+        checkAchievements();
+        $("#toneStage").innerHTML =
         '<div class="tone-result"><strong>' + toneCorrect + " / " + toneRound.length + "</strong>" +
         "<p>" + (toneCorrect >= toneRound.length * 0.8 ? "Tones are landing. Move on to words." : "Listen again — the shape matters more than the words.") + "</p></div>";
       $("#toneButtons").innerHTML = '<button type="button" class="btn btn-primary" id="btnToneAgain">Run it again</button>';
@@ -1630,7 +1896,7 @@
             $("#flipScore").textContent = matched + "/" + chosen.length;
             busy = false;
             if (matched === chosen.length) {
-              S.xp += 20;
+              addXP(20);
               save();
               sfx.finish();
               sparkles();
@@ -1750,17 +2016,79 @@
 
   /* ── Chrome: tabs, stats ───────────────────────────────────────────── */
   function updateStats() {
-    const bar = $("#statsBar");
-    if (!bar) return;
-    bar.innerHTML =
-      '<div class="stat-chip"><span class="ico" style="color:#FF5722">🔥</span>' + S.streak + ' <span class="lab">Streak</span></div>' +
-      '<div class="stat-chip"><span class="ico" style="color:#FBBF24">⭐</span>' + S.xp + ' <span class="lab">XP</span></div>' +
-      '<div class="stat-chip"><span class="ico" style="color:#F24D59">♥</span>' + S.hearts + ' <span class="lab">Hearts</span></div>';
-    const badge = $("#dueBadge");
-    const due = dueCount();
-    if (due > 0) { badge.hidden = false; badge.textContent = String(due); }
-    else badge.hidden = true;
-  }
+      const bar = $("#statsBar");
+      if (!bar) return;
+      bar.innerHTML =
+        '<div class="stat-chip"><span class="ico" style="color:#FF5722">🔥</span>' + S.streak + ' <span class="lab">Streak</span></div>' +
+        '<div class="stat-chip"><span class="ico" style="color:#FBBF24">⭐</span>' + S.xp + ' <span class="lab">XP</span></div>' +
+        '<div class="stat-chip"><span class="ico" style="color:#F24D59">♥</span>' + S.hearts + ' <span class="lab">Hearts</span></div>';
+
+      // Daily goal ring: a small progress arc, always visible, never naggy.
+      const ring = $("#goalRing");
+      if (ring) {
+        const g = goalProgress();
+        const R = 15;
+        const C = 2 * Math.PI * R;
+        const dash = C * g.pct;
+        ring.innerHTML =
+          '<svg viewBox="0 0 36 36" width="34" height="34" aria-hidden="true">' +
+            '<circle cx="18" cy="18" r="' + R + '" fill="none" stroke="rgba(155,176,163,.28)" stroke-width="4"/>' +
+            '<circle cx="18" cy="18" r="' + R + '" fill="none" stroke="' + (g.met ? "#FBBF24" : "#22C55E") +
+              '" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + dash + " " + C +
+              '" transform="rotate(-90 18 18)"/>' +
+          "</svg>" +
+          '<span class="goal-num">' + g.done + "</span>";
+        ring.title = "Daily goal: " + g.done + " / " + g.goal + " XP";
+        ring.setAttribute("aria-label", "Daily goal " + g.done + " of " + g.goal + " XP");
+      }
+
+      const badge = $("#dueBadge");
+      const due = dueCount();
+      if (due > 0) { badge.hidden = false; badge.textContent = String(due); }
+      else badge.hidden = true;
+    }
+
+    /* Goal picker + achievements grid on the Progress tab. */
+    function renderGoalRow() {
+      const row = $("#goalRow");
+      if (!row) return;
+      const g = goalProgress();
+      row.innerHTML =
+        '<div class="goal-info">' +
+          "<strong>" + g.done + " / " + g.goal + " XP</strong> today" +
+          (g.met ? '<span class="goal-met">✓ goal met</span>' : '<span class="goal-hint">' + (g.goal - g.done) + " to go</span>") +
+        "</div>" +
+        '<div class="goal-opts">' +
+          GOAL_OPTIONS.map((v) =>
+            '<button type="button" class="goal-opt' + (v === g.goal ? " on" : "") + '" data-goal="' + v + '">' +
+            v + " XP</button>").join("") +
+        "</div>";
+      $$(".goal-opt", row).forEach((b) => {
+        b.addEventListener("click", function () {
+          S.settings.dailyGoal = +b.dataset.goal;
+          save();
+          renderGoalRow();
+          updateStats();
+          toast("Daily goal set to " + b.dataset.goal + " XP");
+        });
+      });
+    }
+
+    function renderAchievements() {
+      const box = $("#achievements");
+      if (!box) return;
+      const list = achievementState();
+      const earned = list.filter((a) => a.earned).length;
+      box.innerHTML =
+        '<div class="ach-summary">' + earned + " / " + list.length + " earned</div>" +
+        '<div class="ach-grid">' +
+          list.map((a) =>
+            '<div class="ach' + (a.earned ? " earned" : "") + '" title="' + esc(a.desc) + '">' +
+              '<span class="ach-icon">' + a.icon + "</span>" +
+              '<span class="ach-name">' + esc(a.name) + "</span>" +
+            "</div>").join("") +
+        "</div>";
+    }
 
   function setTab(name) {
     $$(".tab").forEach((t) => {
@@ -1771,7 +2099,7 @@
     $$(".tab-panel").forEach((p) => { p.hidden = p.dataset.tab !== name; });
     if (name === "learn") renderLearn();
     if (name === "practice") renderPractice();
-    if (name === "progress") renderProgress();
+    if (name === "progress") { renderProgress(); renderGoalRow(); renderAchievements(); }
     updateStats();
   }
 
@@ -1786,6 +2114,8 @@
     applyTheme();
     applySpeechSettings();
     wireTrace();
+    renderGoalRow();
+    renderAchievements();
 
     // Restore the last XP so the header is right on the splash→main transition.
     updateStats();
