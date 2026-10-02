@@ -556,6 +556,57 @@
     { id: "numbers", label: "Numbers, measures, time · " + NUM_CARDS.length, words: NUM_CARDS }
   ];
 
+  /* ── Word index ─────────────────────────────────────────────────────
+   * Every bundle contributes to one lookup, so tapping a word anywhere --
+   * a lesson, a flashcard, a sentence, a grammar example -- can open the same
+   * full entry. Later bundles do not overwrite earlier ones: the core 250
+   * gloss is more useful than a themed one, and numbers carry a note. */
+  const WORD_INDEX = new Map();
+  function indexWord(w) {
+    if (!w || !w.zh) return;
+    const existing = WORD_INDEX.get(w.zh);
+    if (existing) {
+      // Fill in gaps rather than replacing what is already known.
+      if (!existing.pinyin && w.pinyin) existing.pinyin = w.pinyin;
+      if (!existing.en && w.en) existing.en = w.en;
+      if (!existing.exampleZh && w.exampleZh) {
+        existing.exampleZh = w.exampleZh;
+        existing.exampleEn = w.exampleEn;
+      }
+      if (!existing.note && w.note) existing.note = w.note;
+      if (!existing.theme && w.theme) existing.theme = w.theme;
+      if (!existing.hsk && w.hsk) existing.hsk = w.hsk;
+      if (w.ex_zh && !existing.exampleZh) {
+        existing.exampleZh = w.ex_zh;
+        existing.exampleEn = w.ex_en;
+      }
+      return existing;
+    }
+    const entry = {
+      zh: w.zh,
+      pinyin: w.pinyin || "",
+      en: w.en || "",
+      hsk: w.hsk || "",
+      theme: w.theme || "",
+      note: w.note || "",
+      exampleZh: w.exampleZh || w.ex_zh || "",
+      examplePinyin: w.examplePinyin || w.ex_pinyin || "",
+      exampleEn: w.exampleEn || w.ex_en || ""
+    };
+    WORD_INDEX.set(w.zh, entry);
+    return entry;
+  }
+
+  DECKS.forEach((d) => d.words.forEach(indexWord));
+  (SENT.sentences || []).forEach((s) => indexWord({ zh: s.zh, pinyin: s.pinyin, en: s.en }));
+  GRAMMAR.forEach((n) => { if (n && n.zh) indexWord({ zh: n.zh, pinyin: n.pinyin, en: n.en }); });
+  [].concat(
+    (NUMBERS.numbers || []).map((x) => Object.assign({ hsk: "number" }, x)),
+    (NUMBERS.measures || []).map((x) => Object.assign({ hsk: "measure" }, x)),
+    (NUMBERS.dates || []).map((x) => Object.assign({ hsk: "date" }, x)),
+    (NUMBERS.times || []).map((x) => Object.assign({ hsk: "time" }, x))
+  ).forEach(indexWord);
+
   const ALL_CARDS = DECKS.flatMap((d) => d.words.map((w) => ({ deck: d.id, zh: w.zh, pinyin: w.pinyin, en: w.en })));
 
   window.MP = {
@@ -567,6 +618,8 @@
     TONE_MARKS: TONE_MARKS,
     DECKS: DECKS,
     ALL_CARDS: ALL_CARDS,
+    WORD_INDEX: WORD_INDEX,
+    lookupWord: function (zh) { return WORD_INDEX.get(zh) || null; },
     shuffle: shuffle
   };
 

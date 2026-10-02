@@ -342,7 +342,7 @@
 
   function showScreen(id) {
     ["screenSplash", "screenOnboard", "screenMain", "screenLesson", "screenReview", "screenFlip",
-     "screenCards", "screenTones", "screenTrace", "screenComplete"].forEach((s) => {
+     "screenCards", "screenTones", "screenTrace", "screenType", "screenComplete"].forEach((s) => {
       const n = document.getElementById(s);
       if (n) n.hidden = s !== id;
     });
@@ -369,6 +369,7 @@
     screenCards: "Flashcards",
     screenTones: "Tone Trainer",
     screenTrace: "Writing practice",
+    screenType: "Typing practice",
     screenComplete: "Lesson complete"
   };
 
@@ -595,7 +596,11 @@
       body.innerHTML =
         '<div class="dir-label">New word · tap to hear</div>' +
         '<div class="teach-card">' +
-          '<button type="button" class="teach-zh speakable" id="speakZh" data-say="' + esc(ex.zh) + '">' + esc(ex.zh) + "</button>" +
+          '<div class="teach-zh-row">' +
+            '<button type="button" class="teach-zh speakable" id="speakZh" data-say="' + esc(ex.zh) + '">' + esc(ex.zh) + "</button>" +
+            '<button type="button" class="speaker-btn info" data-detail="' + esc(ex.zh) +
+              '" aria-label="Look up ' + esc(ex.zh) + '">\u2139\ufe0f</button>' +
+          "</div>" +
           '<button type="button" class="teach-py speakable" data-say="' + esc(ex.zh) + '">' + esc(ex.pinyin) + "</button>" +
           '<div class="teach-en">' + esc(ex.en) + "</div>" +
           '<p class="teach-hint">Tap the characters to hear · 点击听发音</p>' +
@@ -824,7 +829,12 @@
       body.innerHTML =
         '<div class="dir-label">' + dirLabel + "</div>" +
         '<div class="prompt-row">' + promptHtml +
-          audioControls(ex.prompt) + "</div>" +
+          '<div class="prompt-actions">' +
+            audioControls(ex.prompt) +
+            '<button type="button" class="speaker-btn info" data-detail="' + esc(ex.prompt) +
+              '" aria-label="Look up ' + esc(ex.prompt) + '">ℹ️</button>' +
+          "</div>" +
+        "</div>" +
         gloss + hint +
         '<div class="opt-list">' + opts + "</div>";
 
@@ -1125,6 +1135,78 @@
     const g = goalProgress();
     if (g.met && !S.goalMetEver) { S.goalMetEver = true; }
     updateStats();
+  }
+
+  /* ── Word detail sheet ───────────────────────────────────────────────
+   * A peek, not a destination. It answers "what does this actually mean in a
+   * sentence" without losing the learner's place, and it is reachable from any
+   * Chinese text they tap. */
+  let detailReturnFocus = null;
+
+  function openDetail(zh) {
+    const entry = M.lookupWord ? M.lookupWord(zh) : null;
+    if (!entry) {
+      toast("No entry for " + zh);
+      return;
+    }
+    detailReturnFocus = document.activeElement;
+
+    const stroke = (window.MP_STROKES || {})[String(entry.zh).slice(0, 1)];
+    const single = Array.from(entry.zh).length === 1;
+    const rec = S.cards[cardKey(entry.zh, entry.pinyin)];
+    const learn = S.introduced[cardKey(entry.zh, entry.pinyin)];
+
+    $("#detailBody").innerHTML =
+      '<div class="d-zh-row">' +
+        '<button type="button" class="d-zh" data-say="' + esc(entry.zh) + '"' +
+          (single ? ' id="detailTraceJump"' : "") + ">" + esc(entry.zh) + "</button>" +
+        audioControls(entry.zh, "detailSpeak") +
+      "</div>" +
+      '<div class="d-py">' + esc(entry.pinyin) + "</div>" +
+      '<div class="d-en">' + esc(entry.en) + "</div>" +
+      '<div class="d-tags">' +
+        (entry.hsk ? '<span class="d-tag hsk">' + esc(entry.hsk) + "</span>" : "") +
+        (entry.theme ? '<span class="d-tag theme">' + esc(entry.theme) + "</span>" : "") +
+        (stroke ? '<span class="d-tag ok">' + stroke.count + " strokes</span>" : "") +
+        (learn ? '<span class="d-tag ok">seen</span>' : '<span class="d-tag">new</span>') +
+        (rec && rec.interval >= 21 ? '<span class="d-tag ok">learned</span>'
+          : rec ? '<span class="d-tag">learning</span>' : "") +
+      "</div>" +
+      (entry.exampleZh
+        ? '<button type="button" class="d-example" data-say="' + esc(entry.exampleZh) + '">' +
+            '<span class="d-ex-zh">' + esc(entry.exampleZh) + "</span>" +
+            (entry.examplePinyin ? '<span class="d-ex-py">' + esc(entry.examplePinyin) + "</span>" : "") +
+            (entry.exampleEn ? '<span class="d-ex-en">' + esc(entry.exampleEn) + "</span>" : "") +
+          "</button>"
+        : '<p class="d-noexample">No example sentence for this one yet.</p>') +
+      (entry.note ? '<p class="d-note">💡 ' + esc(entry.note) + "</p>" : "") +
+      (single && stroke
+        ? '<button type="button" class="btn btn-ghost d-trace" id="detailTrace">✍️ Practise writing this</button>'
+        : "");
+
+    $("#detailSheet").hidden = false;
+    $("#detailScrim").hidden = false;
+    document.body.classList.add("sheet-open");
+    // Focus the sheet so a screen reader lands on it and Esc works.
+    const sheet = $("#detailSheet");
+    sheet.setAttribute("tabindex", "-1");
+    setTimeout(function () {
+      try { sheet.focus({ preventScroll: true }); } catch (e) { sheet.focus(); }
+    }, 40);
+    announce(entry.zh + ". " + entry.pinyin + ". " + entry.en);
+
+    const tr = $("#detailTrace");
+    if (tr) tr.addEventListener("click", function () { closeDetail(); openTrace(entry.zh, entry.pinyin); });
+  }
+
+  function closeDetail() {
+    $("#detailSheet").hidden = true;
+    $("#detailScrim").hidden = true;
+    document.body.classList.remove("sheet-open");
+    if (detailReturnFocus && detailReturnFocus.focus) {
+      try { detailReturnFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    }
+    detailReturnFocus = null;
   }
 
   /* ── Daily goal & achievements ───────────────────────────────────────
@@ -1564,6 +1646,7 @@
       toast(ok ? "Nice writing · +3 XP" : "Keep practising · +1 XP");
       setTimeout(function () { toMain("learn"); }, 700);
     });
+    $("#btnCloseType").addEventListener("click", () => toMain("practice"));
     $("#btnCloseTrace").addEventListener("click", function () {
       if (pendingExerciseReturn) { pendingExerciseReturn = false; showScreen("screenLesson"); renderExercise(); return; }
       toMain("learn");
@@ -1620,6 +1703,159 @@
     }
     announce(msg.text + " " + Math.round(res.score * 100) + " percent shape match.");
     return res;
+  }
+
+  /* ── Dictation / typing ──────────────────────────────────────────────
+   * Productive recall. Every other exercise is recognition: pick the right
+   * option among plausible ones. Typing the word is the only format that
+   * cannot be passed by elimination, and retrieval practice is the
+   * highest-ranked technique in the research this app is built on
+   * (Donoghue & Hattie: d = 1.29 in the languages domain specifically).
+   *
+   * Grading is generous by design and honest about it:
+   *  - the Pinyin field accepts the word with or without tone marks, spaces,
+   *    or capital letters, because typing tone marks on a phone keyboard is
+   *    a typing test, not a Mandarin test;
+   *  - the Chinese field requires the characters, since that IS the answer.
+   * A wrong-but-close attempt is reported as a miss, never as a pass. */
+  let typeQueue = [];
+  let typeIdx = 0;
+  let typeResults = { right: 0, near: 0, wrong: 0 };
+
+  function openTyping(mode) {
+    const learned = Object.keys(S.introduced);
+    let pool = M.ALL_CARDS.filter((w) => learned.indexOf(cardKey(w.zh, w.pinyin)) >= 0);
+    if (pool.length < 4) pool = M.ALL_CARDS.filter((w) => w.zh && w.en);
+    if (!pool.length) { toast("No words to practise yet"); return; }
+    typeQueue = M.shuffle(pool).slice(0, 12);
+    typeIdx = 0;
+    typeResults = { right: 0, near: 0, wrong: 0 };
+    showScreen("screenType");
+    renderTypeItem();
+  }
+
+  /* Compare a typed pinyin against the reference.
+   *
+   * Tone marks are stripped before comparing, so `nihao`, `nǐ hǎo` and
+   * `NI HAO` all match `nǐ hǎo`. This is deliberate: tones are drilled by the
+   * Tone Trainer and the listening exercises, and on a phone keyboard the tone
+   * marks are genuinely hard to enter. Making the keyboard the bottleneck
+   * would measure typing, not Mandarin.
+   *
+   * An earlier version also had a "matched" return for tone-marked-but-
+   * otherwise-identical input. It was unreachable -- stripping tones always
+   * matched first -- so it is gone rather than left as misleading dead code.
+   *
+   * Returns true when the syllables agree. */
+  function comparePinyin(typed, ref) {
+    const strip = (x) => String(x || "")
+      .toLowerCase()
+      .replace(/[\u0101\u00e1\u01ce\u00e0]/g, "a")
+      .replace(/[\u0113\u00e9\u011b\u00e8]/g, "e")
+      .replace(/[\u012b\u00ed\u01d0\u00ec]/g, "i")
+      .replace(/[\u014d\u00f3\u01d2\u00f2]/g, "o")
+      .replace(/[\u016b\u00fa\u01d4\u00f9]/g, "u")
+      .replace(/[\u00fc\u01d6\u01da\u01d8\u01dc]/g, "v")  // ü family -> v
+      .replace(/[\u0148\u01f4\u01f5]/g, "n")                // ń / ǹ
+      .replace(/\s+/g, "");
+    const t = strip(typed);
+    return !!t && t === strip(ref);
+  }
+
+  function renderTypeItem() {
+    const it = typeQueue[typeIdx];
+    if (!it) return;
+    $("#typeScore").textContent = typeIdx + 1 + "/" + typeQueue.length;
+    $("#typeWrap").innerHTML =
+      '<div class="dir-label">Listen, then type what you hear</div>' +
+      '<div class="type-audio">' +
+        audioControls(it.zh, "typeSpeak") +
+        '<p class="type-hint">Not sure? Tap 🔊 as many times as you like.</p>' +
+      "</div>" +
+      '<label class="type-field">' +
+        '<span>Pinyin</span>' +
+        '<input type="text" id="typePinyin" inputmode="latin" autocomplete="off"' +
+          ' autocapitalize="off" autocorrect="off" spellcheck="false"' +
+          ' placeholder="e.g. nihao" aria-label="Type the pinyin you hear" />' +
+      "</label>" +
+      '<label class="type-field">' +
+        '<span>Characters</span>' +
+        '<input type="text" id="typeZh" autocomplete="off"' +
+          ' placeholder="你好" aria-label="Type the characters you hear" />' +
+      "</label>" +
+      '<button type="button" class="btn btn-primary btn-xl" id="typeCheck">Check</button>' +
+      '<p class="type-hint">Typing tones on a phone keyboard is fiddly — pinyin without tone marks is fine.</p>';
+
+    const py = $("#typePinyin");
+    const zh = $("#typeZh");
+    $("#typeCheck").addEventListener("click", function () { checkTyped(it, py.value, zh.value); });
+    zh.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#typeCheck").click(); });
+    py.addEventListener("keydown", (e) => { if (e.key === "Enter") zh.focus(); });
+    setTimeout(() => py.focus(), 60);
+    setTimeout(() => speak(it.zh), 220);
+  }
+
+  function checkTyped(it, pyRaw, zhRaw) {
+    const pyTyped = String(pyRaw || "").trim();
+    const zhTyped = String(zhRaw || "").replace(/\s+/g, "");
+    const zhRef = String(it.zh).replace(/\s+/g, "");
+    const pyRight = comparePinyin(pyTyped, it.pinyin);
+    const zhRight = zhTyped === zhRef;
+
+    // Either field correct counts as success. Requiring both would make a
+    // phone keyboard the bottleneck rather than the language.
+    const ok = zhRight || pyRight;
+    if (ok) typeResults.right++;
+    else typeResults.wrong++;
+
+    const reveal =
+      '<div class="fb-coach">' +
+        '<div class="fb-row ' + (zhRight ? "correct" : "chosen") + '"><span class="fb-lab">You typed</span>' +
+          '<span class="fb-val">' + esc(zhTyped || pyTyped || "—") + "</span></div>" +
+        '<div class="fb-row correct"><span class="fb-lab">Answer</span>' +
+          '<span class="fb-val speakable" data-say="' + esc(it.zh) + '">' +
+            esc(it.zh) + " (" + esc(it.pinyin) + ") — " + esc(it.en) + "</span></div>" +
+      "</div>";
+
+    const fb = $("#typeFeedback");
+    $("#typeWrap").insertAdjacentHTML("beforeend",
+      '<div class="feedback-banner ' + (ok ? "ok" : "bad") + ' rich" id="typeFeedback">' +
+        "<div class=\"fb-main\"><div class=\"fb-title\">" + (ok ? "✓ Correct" : "✗ Not yet") + "</div>" +
+        reveal + "</div>" +
+        '<button type="button" id="typeNext">' +
+          (typeIdx === typeQueue.length - 1 ? "See results" : "Next") + "</button>" +
+      "</div>");
+
+    $$("#typeWrap input").forEach((i) => { i.disabled = true; });
+    $("#typeCheck").disabled = true;
+    if (ok) { sfx.correct(); } else { sfx.wrong(); }
+    announce((ok ? "Correct. " : "Not correct. ") + it.zh + " " + it.pinyin + " means " + it.en);
+
+    $("#typeNext").addEventListener("click", function () {
+      typeIdx++;
+      if (typeIdx >= typeQueue.length) finishTyping();
+      else renderTypeItem();
+    });
+  }
+
+  function finishTyping() {
+    const n = typeQueue.length;
+    const pct = Math.round((typeResults.right / n) * 100);
+    addXP(typeResults.right * 4);
+    save();
+    checkAchievements();
+    $("#typeWrap").innerHTML =
+      '<div class="type-result">' +
+        "<strong>" + pct + "%</strong>" +
+        "<p>" + typeResults.right + " of " + n + " correct</p>" +
+        (pct >= 80 ? "Production is solid. Move on to harder material."
+          : pct >= 50 ? "Getting there. The same words come back when they are due."
+          : "This is the hardest format in the app — that is expected. Keep going.") +
+        '<button type="button" class="btn btn-primary btn-xl" id="typeAgain" style="margin-top:14px">Go again</button>' +
+      "</div>";
+    $("#typeAgain").addEventListener("click", () => openTyping());
+    announce("Typing practice complete. " + pct + " percent correct.");
+    sfx.finish();
   }
 
   /* ── SRS review ────────────────────────────────────────────────────── */
@@ -1749,13 +1985,21 @@
         "</span>" +
       "</button>";
     $("#flashcard").addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-detail]")) return;
       if (!this.classList.contains("flipped")) {
         this.classList.add("flipped");
         speak(it.w.zh);
       }
     });
+    const details = $("#cardDetails");
+    if (details) {
+      details.hidden = true;
+      details.onclick = function () { openDetail(it.w.zh); };
+    }
+
     const grades = $("#cardGrades");
     grades.hidden = false;
+    if (details) details.hidden = false;
     // Rebind every render: the queue advances after each grade, and a stale
     // listener list would keep firing against a closed-over old item.
     $$(".grade-btn", grades).forEach((b) => {
@@ -1963,6 +2207,9 @@
       '<button type="button" class="mode-card teal-mode" id="modeWrite">' +
         '<div class="mode-ico teal">✍️</div><div class="mode-text"><strong>Write</strong>' +
         "<span>Trace characters with your finger</span></div><span class=\"mode-start teal\">Start</span></button>" +
+      '<button type="button" class="mode-card purple-mode" id="modeType">' +
+        '<div class="mode-ico purple">⌨️</div><div class="mode-text"><strong>Type it</strong>' +
+        "<span>Hear it · type what you hear</span></div><span class=\"mode-start purple\">Start</span></button>" +
       '<button type="button" class="mode-card gold-mode" id="modeFlip">' +
         '<div class="mode-ico gold">🃏</div><div class="mode-text"><strong>Flip Match</strong>' +
         "<span>Match words to meanings</span></div><span class=\"mode-start gold\">Start</span></button>";
@@ -1970,6 +2217,7 @@
     $("#modeReview").addEventListener("click", startReview);
     $("#modeTones").addEventListener("click", openTones);
     $("#modeWrite").addEventListener("click", openWritePicker);
+    $("#modeType").addEventListener("click", () => openTyping());
     $("#modeFlip").addEventListener("click", openFlip);
 
     const grid = $("#deckGrid");
@@ -2121,6 +2369,35 @@
     setTab(tab || "learn");
   }
 
+  /* Tap-to-lookup. Any run of Chinese characters that has an indexed entry
+   * becomes tappable. Delegated once, so content rendered later is covered
+   * without rewiring each screen. Tapping inside an existing control (a speak
+   * button, an option) is left alone -- those already do something. */
+  document.addEventListener("click", function (e) {
+    if (!$("#detailSheet").hidden) return;
+    // The explicit info button wins before the "is it a control" guard below.
+    const info = e.target.closest && e.target.closest("[data-detail]");
+    if (info) {
+      e.preventDefault();
+      openDetail(info.getAttribute("data-detail"));
+      return;
+    }
+    // Chinese runs that are NOT already controls: grammar examples, detail
+    // examples, sentence rows. Anything that is already a button keeps its
+    // own meaning -- a lesson prompt taps to speak, so overloading it with
+    // "open the entry" would be two meanings on one target.
+    const inControl = e.target.closest("button, a, input, .opt-btn, .build-tile, .node-btn, canvas, .speaker-btn, .grade-btn, .tone-btn");
+    if (inControl) return;
+    const node = e.target.closest("[data-zh-lookup], .prompt-zh, .teach-zh, .teach-card .teach-zh");
+    if (!node) return;
+    const zh = (node.getAttribute && node.getAttribute("data-zh-lookup")) || node.textContent || "";
+    const trimmed = String(zh).trim();
+    if (!trimmed || !M.lookupWord) return;
+    // Only open when the whole string is something we know; a sentence's
+    // characters are indexed individually, not as a phrase.
+    if (M.lookupWord(trimmed)) { e.preventDefault(); openDetail(trimmed); }
+  });
+
   /* ── Boot ──────────────────────────────────────────────────────────── */
   function boot() {
     showScreen("screenSplash");
@@ -2132,6 +2409,12 @@
 
     // Restore the last XP so the header is right on the splash→main transition.
     updateStats();
+
+    $("#detailClose").addEventListener("click", closeDetail);
+    $("#detailScrim").addEventListener("click", closeDetail);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !$("#detailSheet").hidden) { closeDetail(); return; }
+    });
 
     $("#btnStart").addEventListener("click", function () {
       // Any audio or speech call before this gesture is blocked on iOS.

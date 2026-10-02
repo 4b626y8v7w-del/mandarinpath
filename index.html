@@ -164,6 +164,7 @@
   </header>
   <p class="flip-hint">Tap the card to flip.</p>
   <div class="card-stage" id="cardStage"></div>
+  <button type="button" class="btn btn-ghost card-details" id="cardDetails" data-detail hidden>ℹ️ Details</button>
   <div class="card-grades" id="cardGrades" hidden>
     <button type="button" class="grade-btn again" data-grade="again">Again</button>
     <button type="button" class="grade-btn hard" data-grade="hard">Hard</button>
@@ -184,6 +185,19 @@
   <div class="tone-buttons" id="toneButtons"></div>
   <div class="feedback-banner" id="toneFeedback" hidden></div>
 </section>
+
+<!-- ─────────────────────────  DICTATION / TYPE  ─────────────────────────
+     Productive recall: hear it, then produce it. Multiple choice can be
+     answered by elimination and recognition; typing cannot. -->
+<section id="screenType" class="screen" hidden>
+  <header class="lesson-head">
+    <button type="button" class="icon-btn" id="btnCloseType" aria-label="Close">✕</button>
+    <div class="flip-title">Type what you hear</div>
+    <div class="hearts" id="typeScore">0/0</div>
+  </header>
+  <div class="type-wrap" id="typeWrap"></div>
+</section>
+
 
 <!-- ─────────────────────────  WRITING / TRACE  ───────────────────────── -->
 <section id="screenTrace" class="screen" hidden>
@@ -219,6 +233,18 @@
     <div class="complete-detail" id="completeDetail"></div>
     <button type="button" class="btn btn-primary btn-xl" id="btnToPractice">Claim XP</button>
   </div>
+</section>
+
+
+<!-- ─────────────────────────  WORD DETAIL  ─────────────────────────
+     A bottom sheet rather than a screen: it is a peek, not a destination, and
+     the learner should get back to what they were doing with one dismissal. -->
+<div id="detailScrim" class="detail-scrim" hidden></div>
+<section id="detailSheet" class="detail-sheet" role="dialog" aria-modal="true"
+         aria-labelledby="detailTitle" hidden>
+  <div class="detail-grip" aria-hidden="true"></div>
+  <div class="detail-body" id="detailBody"></div>
+  <button type="button" class="btn btn-primary" id="detailClose">Close</button>
 </section>
 
 <div id="errorBar" role="alert" hidden></div>

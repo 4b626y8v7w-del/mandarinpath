@@ -460,6 +460,291 @@
   line-height: 1.3;
 }
 
+/* ── Typing / dictation ───────────────────────────────────────────────
+   Two fields because the two skills are different: pinyin is the sound,
+   characters are the writing. Either can earn the point — a phone keyboard
+   is a poor instrument for tone marks and a fine one for typing letters. */
+.type-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px var(--gutter) calc(18px + var(--safe-b));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.type-audio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--path-line);
+}
+
+.type-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.type-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.type-field span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+
+.type-field input {
+  min-height: 54px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--path-line);
+  background: var(--card-elev);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1.05rem;
+}
+
+.type-field input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.type-field input:disabled {
+  opacity: 0.6;
+}
+
+.type-result {
+  margin: auto;
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.type-result strong {
+  font-size: 3rem;
+  color: var(--primary);
+  display: block;
+}
+
+.type-result p {
+  color: var(--muted);
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+.mode-card.purple-mode .mode-ico.purple {
+  background: rgba(158, 107, 242, 0.18);
+  color: #c4a5ff;
+}
+
+.mode-start.purple {
+  background: #9E6BF2;
+  color: #fff;
+}
+
+/* ── Word detail sheet ──────────────────────────────────────────────
+   A bottom sheet over the current screen, not a new screen: looking a word
+   up is a peek, and losing your place in a lesson to do it would be worse
+   than the lookup. */
+body.sheet-open {
+  overflow: hidden;
+}
+
+.detail-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.detail-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 95;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px var(--gutter) calc(16px + var(--safe-b));
+  border-radius: 22px 22px 0 0;
+  background: var(--screen);
+  border-top: 1px solid var(--path-line);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.detail-grip {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--path-line);
+  margin: 2px auto 6px;
+  flex: 0 0 auto;
+}
+
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.d-zh-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.d-zh {
+  font-size: 2.4rem;
+  line-height: 1.2;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.d-py {
+  font-size: 1rem;
+  color: var(--primary);
+  letter-spacing: 0.3px;
+}
+
+.d-en {
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+.d-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.d-tag {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--path-line);
+  color: var(--muted);
+}
+
+.d-tag.ok {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.d-example {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--path-line);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.d-ex-zh {
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.d-ex-py {
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+.d-ex-en {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.d-noexample,
+.d-note {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.d-note {
+  color: var(--accent, #80182E);
+}
+
+.d-trace {
+  margin-top: 6px;
+}
+
+.card-details {
+  margin: 8px var(--gutter) 0;
+  min-height: 44px;
+}
+
+/* The info affordance sits beside the Chinese it describes, never replacing
+   the text: tapping the word speaks it, tapping ℹ️ opens its full entry. */
+.teach-zh-row,
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.speaker-btn.info {
+  min-width: 46px;
+  min-height: 46px;
+  font-size: 1.1rem;
+  background: var(--card-elev);
+}
+
+.speaker-btn.info:active {
+  transform: scale(0.94);
+}
+
+/* A hairline underline signals "this is tappable" without a permanent
+   visual weight, and only where tapping actually does something. */
+.teach-zh-row .teach-zh,
+.prompt-zh {
+  text-decoration: underline;
+  text-decoration-color: var(--path-line);
+  text-underline-offset: 5px;
+}
+
+/* Tappable Chinese runs get an affordance without a permanent visual change. */
+[data-zh-lookup],
+.d-zh,
+.d-example {
+  cursor: pointer;
+}
+
 /* ── Daily goal ring & achievements ───────────────────────────────── */
 .goal-ring {
   position: relative;

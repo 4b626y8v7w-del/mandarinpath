@@ -32,8 +32,14 @@ Plus **316 themed words** (22 themes) each with a worked example sentence,
 **70 grammar notes** embedded in lessons, and **stroke-order data for 120
 characters**.
 
-**Five practice modes:** SM-2 spaced review · Tone Trainer · Flip Match ·
-4-grade flashcards · graded handwriting
+**Six practice modes:** SM-2 spaced review · Tone Trainer · Flip Match ·
+4-grade flashcards · graded handwriting · **Type it** (productive recall)
+
+**Word lookup:** tap any word's ℹ️ button anywhere in the app for its full
+entry — characters, pinyin, meaning, HSK level, theme, stroke count, an
+example sentence, and how well you've learned it. 979 words indexed across
+every bundle. The sheet is a bottom sheet, not a new screen, so looking a
+word up never costs you your place in a lesson.
 
 ## Beginner affordances
 
@@ -50,6 +56,11 @@ characters**.
   practise it — you have to construct it.
 - **Grammar tips inline.** A short note on particles, word order or measure
   words appears inside the lesson where it is relevant, with an example.
+- **Type it.** Hear a word, then type it. Every other format is recognition —
+  you pick the right option among plausible ones, and elimination is a
+  legitimate strategy. Typing cannot be eliminated past. Tone marks are
+  optional, because on a phone keyboard they measure typing speed, not
+  Mandarin.
 - **Retry, then move on.** Missed items come back within the lesson, capped
   at two rounds so nobody gets trapped in a lesson they can't pass.
 - **Nothing is timed.** No hearts pressure, no speed bonus.
@@ -102,6 +113,7 @@ node validate-data.js     # data bundles: format, pinyin, grid bounds
 node validate-content.js  # grammar / numbers / themed vocabulary
 node check-curriculum.js  # every quiz has its answer, no duplicates
 node test-chunker.js      # sentence-builder puzzles are solvable
+node test-typing.js       # typed-answer comparison, incl. false-pass traps
 ```
 
 `probe.js` and `audit-layout.js` are injected into the running page by the
